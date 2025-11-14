@@ -1,0 +1,28 @@
+# Ultralytics YOLOv8 detector with a TorchVision VGG16 backbone
+# Custom adapters are defined in ultralytics/models/custom_layers.py
+
+nc: 1
+
+backbone:
+  - [-1, 1, TorchVision, [512, "vgg16", "IMAGENET1K_V1", True, 2, True]]
+  - [0, 1, FeatureSelect, [18, 512]]
+  - [-1, 1, YOLOv8VGGBackboneAdapter, [512, 256, 3, 0.5, False]]
+  - [0, 1, FeatureSelect, [24, 512]]
+  - [-1, 1, YOLOv8VGGBackboneAdapter, [512, 384, 3, 0.5, False]]
+  - [0, 1, FeatureSelect, [31, 512]]
+  - [-1, 1, YOLOv8VGGBackboneAdapter, [512, 512, 4, 0.5, True]]
+
+head:
+  - [6, 1, nn.Upsample, [None, 2, "nearest"]]
+  - [[-1, 4], 1, Concat, [1]]
+  - [-1, 2, C2f, [384, True]]
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
+  - [[-1, 2], 1, Concat, [1]]
+  - [-1, 2, C2f, [256, True]]
+  - [-1, 1, Conv, [256, 3, 2]]
+  - [[-1, 9], 1, Concat, [1]]
+  - [-1, 2, C2f, [384, True]]
+  - [-1, 1, Conv, [384, 3, 2]]
+  - [[-1, 6], 1, Concat, [1]]
+  - [-1, 2, C2f, [512, True]]
+  - [[12, 15, 18], 1, YOLOv8VGGDetect, [nc]]
