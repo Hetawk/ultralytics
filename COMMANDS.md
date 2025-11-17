@@ -161,6 +161,30 @@ git config --global credential.useHttpPath true
 
 ```
 
+### Optional: SSH keys per GitHub account (recommended for per-account repo permissions)
+
+```bash
+# generate keys (do this per account if not already created)
+ssh-keygen -t ed25519 -C "work@example.com" -f ~/.ssh/id_ed25519_work
+ssh-keygen -t ed25519 -C "personal@example.com" -f ~/.ssh/id_ed25519_personal
+
+# Edit ~/.ssh/config and add hosts for each account (example):
+#
+# Host github-work
+#   HostName github.com
+#   User git
+#   IdentityFile ~/.ssh/id_ed25519_work
+#
+# Host github-personal
+#   HostName github.com
+#   User git
+#   IdentityFile ~/.ssh/id_ed25519_personal
+#
+# Use SSH remotes that map to those hosts:
+# git remote set-url origin git@github-work:Hetawk/ultralytics.git
+# git remote set-url origin git@github-personal:username/repo.git
+```
+
 ## 5. Helpful Flags
 
 - `device=`: choose hardware (`cpu`, `0`, `0,1`).
