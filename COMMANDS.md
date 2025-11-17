@@ -166,15 +166,21 @@ yolo detect val model=runs/detect/train/cface/yolov8_vgg16/weights/best.pt data=
 
 Both YAMLs live under `models/` and use the adapters defined in `models/custom_layers.py`; the commands above write results to `runs/<model_name>` so artifacts stay grouped by architecture.
 
-### 6.2 TorchVision Faster R-CNN Baseline
+### 6.2 TorchVision Baselines via Custom Trainer
 
 ```bash
-python models/faster_rcnn.py --data dataset/facemask/data.yaml --epochs 40 --batch 4 --device cuda --project runs --name faster_rcnn
+# Train Faster R-CNN on cface dataset for 100 epochs on GPU 3
+CUDA_VISIBLE_DEVICES=3 python ultralytics/trainers/custom_trainer.py --model faster_rcnn --data dataset/cface/data.yaml --epochs 100 --batch 8 --device cuda
+
+# Train on cbody dataset with custom output directory and backbone override
+CUDA_VISIBLE_DEVICES=2 python ultralytics/trainers/custom_trainer.py \
+    --model faster_rcnn --data dataset/cbody/data.yaml --epochs 100 --batch 8 --device cuda \
+    --project runs --name faster_rcnn_cbody --model-arg trainable_backbone_layers=5
 ```
 
-Checkpoints are stored under `runs/faster_rcnn/<name>/weights/` with `best.pt` tracking the lowest validation loss.
+Checkpoints land under `runs/<name or model>/weights/` with `best.pt` tracking the lowest validation loss. Use `--model-arg key=value` to pass extra kwargs to any registered builder (defaults live in `ultralytics/model_loader.py`). Note: TorchVision Faster R-CNN still handles image resizing internally and ignores `imgsz`.
 
-### 6.3 Grad-CAM Visualization
+### 6.3 Grad-CAM Visualization 
 
 ```bash
 # show available layer indices (no source images needed)
