@@ -129,6 +129,38 @@ rm -rf ~/.cache/ultralytics
 pytest -q
 ```
 
+### Repo-local Git identity & multi-account credential helpers
+
+```bash
+# Set a repo-local identity (run inside the repo directory)
+cd ~/ekd_coding_env/ultralytics
+git config user.name "Your Name"
+git config user.email "you@example.com"
+
+# Switch identities locally inside this repo quickly
+git config alias.set-repo-work "!git config user.name 'Work Name' && git config user.email 'work@example.com' && git config --local --list | grep user"
+git config alias.set-repo-personal "!git config user.name 'Personal Name' && git config user.email 'personal@example.com' && git config --local --list | grep user"
+
+# GitHub CLI (gh) workflow to add or switch GitHub accounts
+gh auth login                 # run interactively to create a new login
+gh auth status                # show current auth
+gh auth logout -h github.com  # logout from github.com
+
+# Git Credential Manager (GCM) workflows for multi-account credentials (Linux user install):
+# - configure GCM for git
+git-credential-manager configure
+# - login with a GitHub account (GCM will open a browser/device flow or CLI auth)
+git-credential-manager github login
+# - list known github accounts
+git-credential-manager github list
+# - remove a stored github account
+git-credential-manager github logout <account>
+
+# Hint: enable useHttpPath so different repo urls to the same host can store different creds
+git config --global credential.useHttpPath true
+
+```
+
 ## 5. Helpful Flags
 
 - `device=`: choose hardware (`cpu`, `0`, `0,1`).
