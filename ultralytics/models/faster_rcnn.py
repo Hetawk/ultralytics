@@ -113,19 +113,42 @@ def resolve_split(base: Path, entry: str | None) -> Tuple[Path, Path] | None:
     return images_dir, labels_dir
 
 
-def build_model(num_classes: int, trainable_backbone_layers: int = 3) -> torchvision.models.detection.FasterRCNN:
-    """Build Faster R-CNN model with a configurable number of trainable backbone layers."""
+def build_model(
+    num_classes: int,
+    trainable_backbone_layers: int = 3,
+    weights: str | None = "DEFAULT",
+    weights_backbone: str | None = None,
+    pretrained: bool | None = None,
+    pretrained_backbone: bool | None = None,
+) -> torchvision.models.detection.FasterRCNN:
+    """Build Faster R-CNN with flexible weight-loading for differing torchvision versions."""
+
+    def _call_new_api():
+        kwargs = {"trainable_backbone_layers": trainable_backbone_layers}
+        if weights is not None:
+            kwargs["weights"] = weights
+        else:
+            kwargs["weights"] = None
+        if weights_backbone is not None:
+            kwargs["weights_backbone"] = weights_backbone
+        return torchvision.models.detection.fasterrcnn_resnet50_fpn(**kwargs)
+
+    def _call_legacy_api():
+        use_pretrained = pretrained if pretrained is not None else bool(weights not in (None, "DEFAULT"))
+        use_pretrained_backbone = (
+            pretrained_backbone if pretrained_backbone is not None else use_pretrained
+        )
+        kwargs = {
+            "trainable_backbone_layers": trainable_backbone_layers,
+            "pretrained": use_pretrained,
+            "pretrained_backbone": use_pretrained_backbone,
+        }
+        return torchvision.models.detection.fasterrcnn_resnet50_fpn(**kwargs)
 
     try:
-        model = torchvision.models.detection.fasterrcnn_resnet50_fpn(
-            weights="DEFAULT",
-            trainable_backbone_layers=trainable_backbone_layers,
-        )
+        model = _call_new_api()
     except TypeError:
-        model = torchvision.models.detection.fasterrcnn_resnet50_fpn(
-            pretrained=True,
-            trainable_backbone_layers=trainable_backbone_layers,
-        )
+        model = _call_legacy_api()
 
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)

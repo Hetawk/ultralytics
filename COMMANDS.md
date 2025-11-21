@@ -129,62 +129,6 @@ rm -rf ~/.cache/ultralytics
 pytest -q
 ```
 
-### Repo-local Git identity & multi-account credential helpers
-
-```bash
-# Set a repo-local identity (run inside the repo directory)
-cd ~/ekd_coding_env/ultralytics
-git config user.name "Your Name"
-git config user.email "you@example.com"
-
-# Switch identities locally inside this repo quickly
-git config alias.set-repo-work "!git config user.name 'Work Name' && git config user.email 'work@example.com' && git config --local --list | grep user"
-git config alias.set-repo-personal "!git config user.name 'Personal Name' && git config user.email 'personal@example.com' && git config --local --list | grep user"
-
-# GitHub CLI (gh) workflow to add or switch GitHub accounts
-gh auth login                 # run interactively to create a new login
-gh auth status                # show current auth
-gh auth logout -h github.com  # logout from github.com
-
-# Git Credential Manager (GCM) workflows for multi-account credentials (Linux user install):
-# - configure GCM for git
-git-credential-manager configure
-# - login with a GitHub account (GCM will open a browser/device flow or CLI auth)
-git-credential-manager github login
-# - list known github accounts
-git-credential-manager github list
-# - remove a stored github account
-git-credential-manager github logout <account>
-
-# Hint: enable useHttpPath so different repo urls to the same host can store different creds
-git config --global credential.useHttpPath true
-
-```
-
-### Optional: SSH keys per GitHub account (recommended for per-account repo permissions)
-
-```bash
-# generate keys (do this per account if not already created)
-ssh-keygen -t ed25519 -C "work@example.com" -f ~/.ssh/id_ed25519_work
-ssh-keygen -t ed25519 -C "personal@example.com" -f ~/.ssh/id_ed25519_personal
-
-# Edit ~/.ssh/config and add hosts for each account (example):
-#
-# Host github-work
-#   HostName github.com
-#   User git
-#   IdentityFile ~/.ssh/id_ed25519_work
-#
-# Host github-personal
-#   HostName github.com
-#   User git
-#   IdentityFile ~/.ssh/id_ed25519_personal
-#
-# Use SSH remotes that map to those hosts:
-# git remote set-url origin git@github-work:Hetawk/ultralytics.git
-# git remote set-url origin git@github-personal:username/repo.git
-```
-
 ## 5. Helpful Flags
 
 - `device=`: choose hardware (`cpu`, `0`, `0,1`).
@@ -234,13 +178,6 @@ yolo detect val model=runs/detect/train/cbody/yolov8_vgg16/weights/best.pt data=
 # Evaluate VGG16 on `cbody` test split
 yolo detect val model=runs/detect/train/cbody/yolov8_vgg16/weights/best.pt data=dataset/cbody/data.yaml device=3 split=test
 
-yolo detect train model=models/yolov8_vgg16.yaml data=dataset/cbody/data.yaml epochs=100 imgsz=640 batch=8 device=3
-# Validate the VGG16 run on the validation split
-yolo detect val model=runs/detect/train/cface/yolov8_vgg16/weights/best.pt data=dataset/cface/data.yaml device=0
-
-# Evaluate the VGG16 run on the held-out test split
-yolo detect val model=runs/detect/train/cface/yolov8_vgg16/weights/best.pt data=dataset/cface/data.yaml device=2 split=test
-
 ```
 
 Both YAMLs live under `models/` and use the adapters defined in `models/custom_layers.py`; the commands above write results to `runs/<model_name>` so artifacts stay grouped by architecture.
@@ -249,76 +186,29 @@ Both YAMLs live under `models/` and use the adapters defined in `models/custom_l
 
 ```bash
 
-# Train Faster R-CNN on `cface` dataset for 100 epochs on GPU 3
+# Train Faster R-CNN on `cface` (GPU 3)
+CUDA_VISIBLE_DEVICES=3 python ultralytics/trainers/custom_trainer.py --model faster_rcnn --data dataset/cface/data.yaml --epochs 100 --batch 8 --device cuda
+
 CUDA_VISIBLE_DEVICES=3 python ultralytics/trainers/custom_trainer.py --model faster_rcnn --data dataset/cface/data.yaml --epochs 100 --batch 8 --device cuda --project runs --name faster_rcnn_cface
+# Need to avoid downloading TorchVision pretrained weights (e.g., offline cluster)? Append: --model-arg weights=None
+# Evaluate validation split
+python models/faster_rcnn_eval.py --data dataset/cface/data.yaml --weights runs/faster_rcnn_cface/weights/best.pt --split val --batch 8 --device cuda
+# Evaluate test split
+python models/faster_rcnn_eval.py --data dataset/cface/data.yaml --weights runs/faster_rcnn_cface/weights/best.pt --split test --batch 8 --device cuda
 
-# The custom trainer will compute validation loss if the YAML defines a `val` split.
-
-# After training, validate the Faster R-CNN run on the `cface` validation split (if present)
-# (the trainer prints validation loss to console during training and after each epoch)
-
-# Evaluate/test the Faster R-CNN run on the `cface` test split (if present) using a short Python snippet
-CUDA_VISIBLE_DEVICES=3 python - <<'PY'
-from pathlib import Path
-import torch
-from ultralytics.data.utils import check_det_dataset
-from ultralytics.model_loader import get_model_entry
-from ultralytics.models.faster_rcnn import YoloDetectionDataset, collate_fn, resolve_split
-from torch.utils.data import DataLoader
-from ultralytics.trainers.custom_trainer import evaluate
-
-cfg = "dataset/cface/data.yaml"
-data_cfg = check_det_dataset(cfg)
-base = Path(data_cfg["path"])
-test_pair = resolve_split(base, data_cfg.get("test"))
-if test_pair is None:
-    print("No test split defined for", cfg)
-    raise SystemExit(1)
-imgs, labels = test_pair
-nc = data_cfg.get("nc") or len(data_cfg.get("names", []))
-model_entry = get_model_entry("faster_rcnn")
-model = model_entry.build(num_classes=nc + 1)
-model.load_state_dict(torch.load("./runs/faster_rcnn_cface/weights/best.pt"))
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model.to(device)
-loader = DataLoader(YoloDetectionDataset(imgs, labels), batch_size=8, shuffle=False, collate_fn=collate_fn)
-print("Test loss:", evaluate(model, loader, device))
-PY
-
-
-# Train Faster R-CNN on `cbody` dataset with custom output directory and backbone override
+# Train Faster R-CNN on `cbody` with deeper backbone layers (GPU 2)
 CUDA_VISIBLE_DEVICES=2 python ultralytics/trainers/custom_trainer.py \
     --model faster_rcnn --data dataset/cbody/data.yaml --epochs 100 --batch 8 --device cuda \
     --project runs --name faster_rcnn_cbody --model-arg trainable_backbone_layers=5
-
-# Evaluate/test the Faster R-CNN run on the `cbody` test split (if present)
-CUDA_VISIBLE_DEVICES=2 python - <<'PY'
-from pathlib import Path
-import torch
-from ultralytics.data.utils import check_det_dataset
-from ultralytics.model_loader import get_model_entry
-from ultralytics.models.faster_rcnn import YoloDetectionDataset, collate_fn, resolve_split
-from torch.utils.data import DataLoader
-from ultralytics.trainers.custom_trainer import evaluate
-
-cfg = "dataset/cbody/data.yaml"
-data_cfg = check_det_dataset(cfg)
-base = Path(data_cfg["path"])
-test_pair = resolve_split(base, data_cfg.get("test"))
-if test_pair is None:
-    print("No test split defined for", cfg)
-    raise SystemExit(1)
-imgs, labels = test_pair
-nc = data_cfg.get("nc") or len(data_cfg.get("names", []))
-model_entry = get_model_entry("faster_rcnn")
-model = model_entry.build(num_classes=nc + 1)
-model.load_state_dict(torch.load("./runs/faster_rcnn_cbody/weights/best.pt"))
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model.to(device)
-loader = DataLoader(YoloDetectionDataset(imgs, labels), batch_size=8, shuffle=False, collate_fn=collate_fn)
-print("Test loss:", evaluate(model, loader, device))
-PY
+# To skip pretrained weights for this run:
+#     --model-arg weights=None
+# Evaluate validation split
+python models/faster_rcnn_eval.py --data dataset/cbody/data.yaml --weights runs/faster_rcnn_cbody/weights/best.pt --split val --batch 8 --device cuda
+# Evaluate test split
+python models/faster_rcnn_eval.py --data dataset/cbody/data.yaml --weights runs/faster_rcnn_cbody/weights/best.pt --split test --batch 8 --device cuda
 ```
+
+`models/faster_rcnn_eval.py` mirrors the custom trainer’s loss computation, so you can point it at any Ultralytics-format dataset YAML and checkpoint to obtain split-specific losses without embedding inline Python in your terminal history.
 
 Checkpoints land under `runs/<name or model>/weights/` with `best.pt` tracking the lowest validation loss. Use `--model-arg key=value` to pass extra kwargs to any registered builder (defaults live in `ultralytics/model_loader.py`). Note: TorchVision Faster R-CNN still handles image resizing internally and ignores `imgsz`.
 
@@ -326,11 +216,18 @@ Checkpoints land under `runs/<name or model>/weights/` with `best.pt` tracking t
 
 ```bash
 # show available layer indices (no source images needed)
-python models/gradcam.py --model runs/yolov8_resnet/weights/best.pt --list-layers
+python models/gradcam.py --model runs/detect/train/cbody/yolov8_resnet/weights/best.pt --list-layers
 
 # generate Grad-CAM overlays for a few validation images (Cattle class index 0)
-python models/gradcam.py --model runs/yolov8_resnet/weights/best.pt --source dataset/cbody/valid/images \
-    --layer 12 --cls 0 --conf 0.0 --topk 2 --max-images 6 --device 2 --output runs/gradcam_resnet
+python models/gradcam.py --model runs/detect/train/cbody/yolov8_resnet/weights/best.pt --source dataset/cbody/valid/images --layer 12 --cls 0 --conf 0.0 --topk 2 --max-images 6 --device 2
+
+# alternate dataset/model example (Face)
+python models/gradcam.py --model runs/detect/train/cface/yolov8_resnet/weights/best.pt --source dataset/cface/valid/images --layer 12 --cls 0 --conf 0.0 --topk 2 --max-images 6 --device 3
+
+# keep every face, suppress duplicates with IoU 0.4
+python models/gradcam.py --model runs/detect/train/cface/yolov8_resnet/weights/best.pt --source dataset/cface/valid/images --layer 12 --cls 0 --conf 0.05 --topk -1 --iou-filter 0.4 --max-images 4 --device 2
+
+python models/gradcam.py --model runs/detect/train/cface/yolov8_resnet/weights/best.pt --source dataset/cface/valid/images --layer 12 --cls 0 --conf 0.05  --topk -1 --iou-filter 0.4 --max-images 4 --device 2
 ```
 
-The script writes per-detection overlays (JPG) plus raw heatmaps (`.npy` arrays of normalized CAM values) to the specified output directory. `--max-images` caps how many files are processed, `--cls` targets a specific class, and `--layer` selects which backbone block to probe (use the `--list-layers` flag to see indices; positive indices refer to the backbone modules shown there). If overlays look like the original image, inspect the `.npy` arrays directly (e.g., threshold at `>0.3` before plotting) or adjust the blend factor with `--alpha`. Grad-CAM quality depends on the model’s feature separation—longer training or more varied data may be needed for sharper activations.
+The script writes per-detection overlays (JPG) plus raw heatmaps (`.npy` arrays) under `runs/<task>/<mode>/<dataset>/<model>/` (defaults to `runs/detect/gradcam/<dataset>/<model>/`). A combined view aggregating all detections is emitted alongside the per-detection assets (look for `*_gradcam_combined.jpg`). Override the hierarchy with `--project/--task/--mode/--dataset-name/--run-name` or pass a fully-qualified `--output`. `--topk <= 0` keeps every unique detection that clears `--conf`, while `--iou-filter` controls how aggressively near-duplicate anchors are merged. `--max-images` caps how many files are processed, `--cls` targets a specific class, and `--layer` selects which backbone block to probe (use the `--list-layers` flag to see indices). If overlays look like the original image, inspect the `.npy` arrays directly (e.g., threshold at `>0.3` before plotting) or adjust the blend factor with `--alpha`. Grad-CAM quality depends on the model’s feature separation—longer training or more varied data may be needed for sharper activations.
