@@ -116,6 +116,11 @@ def parse_args() -> argparse.Namespace:
         default=0.5,
         help="IoU threshold used to suppress duplicate anchors (helps keep one box per object)",
     )
+    parser.add_argument(
+        "--save-individual",
+        action="store_true",
+        help="Also save per-detection Grad-CAM overlays/heatmaps (default: only combined output)",
+    )
     return parser.parse_args()
 
 
@@ -460,11 +465,12 @@ def main() -> None:
                     }
                 )
 
-                suffix = f"_{rank}" if num_selected > 1 else ""
-                overlay_path = save_dir / f"{img_path.stem}_gradcam{suffix}.jpg"
-                heatmap_path = save_dir / f"{img_path.stem}_heatmap{suffix}.npy"
-                cv2.imwrite(str(overlay_path), overlay)
-                np.save(heatmap_path, cam)
+                if args.save_individual:
+                    suffix = f"_{rank}" if num_selected > 1 else ""
+                    overlay_path = save_dir / f"{img_path.stem}_gradcam{suffix}.jpg"
+                    heatmap_path = save_dir / f"{img_path.stem}_heatmap{suffix}.npy"
+                    cv2.imwrite(str(overlay_path), overlay)
+                    np.save(heatmap_path, cam)
 
             feature_hook.clear()
             if device.type != "cpu":
