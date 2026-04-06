@@ -1,0 +1,75 @@
+# Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
+
+# MedDef2_T: Vision Transformer with Defense Mechanisms for Medical Image Classification
+# Documentation: https://docs.ultralytics.com/models/meddef
+
+# Parameters
+nc: 1000  # number of classes (ImageNet default)
+scales:  # model compound scaling constants for different depth variants
+  # [depth_multiplier, embed_dim_scale, transformer_depth]
+  # Depth 2.0 - Tiny: 6 transformer blocks, 192 embed_dim, 3 heads
+  2.0: [1.0, 0.25, 6]   # MedDef2_T-Tiny
+  # Depth 2.1 - Small: 12 transformer blocks, 384 embed_dim, 6 heads  
+  2.1: [1.0, 0.50, 12]  # MedDef2_T-Small
+  # Depth 2.2 - Base: 12 transformer blocks, 768 embed_dim, 12 heads
+  2.2: [1.0, 1.00, 12]  # MedDef2_T-Base
+  # Depth 2.3 - Large: 24 transformer blocks, 1024 embed_dim, 16 heads
+  2.3: [1.0, 1.33, 24]  # MedDef2_T-Large
+
+# Model configuration
+model:
+  type: meddef2_t
+  img_size: 224
+  patch_size: 16
+  in_channels: 3
+  
+  # Defense mechanisms
+  defense:
+    frequency: true       # Frequency domain defense
+    multi_scale: true     # Multi-scale feature extraction
+    patch_consistency: true  # Patch consistency checking
+    cbam: true           # CBAM attention in transformer blocks
+  
+  # Training parameters
+  drop_rate: 0.0
+  attn_drop_rate: 0.0
+  drop_path_rate: 0.1
+  qkv_bias: true
+  mlp_ratio: 4.0
+
+# Depth-specific configurations
+# These map to the factory function get_meddef2_t(depth)
+depth_configs:
+  2.0:  # Tiny
+    name: meddef2_t_tiny
+    embed_dim: 192
+    depth: 6
+    num_heads: 3
+    params: ~1.8M  # Approximate parameter count
+    
+  2.1:  # Small
+    name: meddef2_t_small
+    embed_dim: 384
+    depth: 12
+    num_heads: 6
+    params: ~6.5M
+    
+  2.2:  # Base
+    name: meddef2_t_base
+    embed_dim: 768
+    depth: 12
+    num_heads: 12
+    params: ~25M
+    
+  2.3:  # Large
+    name: meddef2_t_large
+    embed_dim: 1024
+    depth: 24
+    num_heads: 16
+    params: ~72M
+
+# Usage examples:
+# Train tiny model:   yolo train model=meddef2_t.yaml depth=2.0 data=imagenet10 epochs=100
+# Train small model:  yolo train model=meddef2_t.yaml depth=2.1 data=imagenet10 epochs=100
+# Train base model:   yolo train model=meddef2_t.yaml depth=2.2 data=imagenet10 epochs=100
+# Train large model:  yolo train model=meddef2_t.yaml depth=2.3 data=imagenet10 epochs=100

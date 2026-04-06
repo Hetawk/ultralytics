@@ -101,6 +101,20 @@ from .transformer import (
     TransformerEncoderLayer,
     TransformerLayer,
 )
+from .defense import (
+    FrequencyDefense,
+    PatchConsistency,
+    CBAMAttention,
+    DefensiveDistillationLoss,
+    RobustnessRegularizer,
+)
+from .meddef_transformer import (
+    MedDefVisionTransformer,
+    MedDefTransformerBlock,
+    MultiHeadAttention,
+    PatchEmbedding,
+    DropPath,
+)
 
 __all__ = (
     "AIFI",
@@ -110,6 +124,7 @@ __all__ = (
     "C3",
     "C3TR",
     "CBAM",
+    "CBAMAttention",
     "CIB",
     "DFL",
     "ELAN1",
@@ -147,7 +162,10 @@ __all__ = (
     "DeformableTransformerDecoder",
     "DeformableTransformerDecoderLayer",
     "Detect",
+    "DefensiveDistillationLoss",
+    "DropPath",
     "Focus",
+    "FrequencyDefense",
     "GhostBottleneck",
     "GhostConv",
     "HGBlock",
@@ -160,6 +178,11 @@ __all__ = (
     "MLPBlock",
     "MSDeformAttn",
     "MaxSigmoidAttnBlock",
+    "MedDefTransformerBlock",
+    "MedDefVisionTransformer",
+    "MultiHeadAttention",
+    "PatchConsistency",
+    "PatchEmbedding",
     "Pose",
     "Proto",
     "RTDETRDecoder",
@@ -168,6 +191,7 @@ __all__ = (
     "RepNCSPELAN4",
     "RepVGGDW",
     "ResNetLayer",
+    "RobustnessRegularizer",
     "SCDown",
     "Segment",
     "SpatialAttention",

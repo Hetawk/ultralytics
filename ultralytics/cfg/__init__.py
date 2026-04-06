@@ -385,6 +385,51 @@ def check_cfg(cfg: dict, hard: bool = True) -> None:
                 cfg[k] = bool(v)
 
 
+def _sanitize_component(value: str | Path | None) -> str | None:
+    """Convert a file or directory path to a clean run-name component."""
+
+    if not value:
+        return None
+
+    value = str(value)
+    try:
+        path = Path(value)
+    except TypeError:  # non-path-like input
+        path = Path(str(value))
+
+    # Handle checkpoints saved under runs/**/weights/best.pt -> prefer run folder name
+    if path.name in {"best.pt", "last.pt"} and path.parent.name == "weights":
+        candidate = path.parent.parent.name
+    elif path.suffix in {".pt", ".pth", ".bin", ".onnx", ".engine"}:
+        candidate = path.stem
+    elif path.suffix in {".yaml", ".yml"}:
+        candidate = path.stem
+    else:
+        candidate = path.name or value
+
+    candidate = candidate.replace(" ", "_")
+    return candidate or None
+
+
+def _infer_dataset_name(args: SimpleNamespace) -> str | None:
+    """Best-effort extraction of dataset identifier from args.data."""
+
+    data = getattr(args, "data", None)
+    if not data:
+        return None
+
+    path = Path(str(data))
+    if path.suffix in {".yaml", ".yml"}:
+        stem = path.stem
+        if stem.lower() in {"data", "dataset", "train", "val", "test"} and path.parent.name:
+            stem = path.parent.name
+    else:
+        stem = path.name
+
+    stem = stem.replace(" ", "_")
+    return stem or None
+
+
 def get_save_dir(args: SimpleNamespace, name: str | None = None) -> Path:
     """Return the directory path for saving outputs, derived from arguments or default settings.
 
@@ -410,8 +455,33 @@ def get_save_dir(args: SimpleNamespace, name: str | None = None) -> Path:
         from ultralytics.utils.files import increment_path
 
         project = args.project or (ROOT.parent / "tests/tmp/runs" if TESTS_RUNNING else RUNS_DIR) / args.task
-        name = name or args.name or f"{args.mode}"
-        save_dir = increment_path(Path(project) / name, exist_ok=args.exist_ok if RANK in {-1, 0} else True)
+
+        provided_name = name if name is not None else getattr(args, "name", None)
+        default_mode_name = (args.mode or "run").replace(" ", "_")
+        default_name = provided_name or default_mode_name
+
+        if not getattr(args, "project", None):
+            dataset_name = _infer_dataset_name(args)
+            model_name = _sanitize_component(getattr(args, "model", None))
+
+            base_path = Path(project)
+            base_path /= default_mode_name
+
+            if dataset_name:
+                base_path /= dataset_name
+
+            if provided_name in {None, "", args.mode}:  # use structured naming when no custom name supplied
+                run_name = model_name or default_name
+            else:
+                run_name = provided_name
+
+            run_name = (run_name or default_mode_name).replace(" ", "_")
+
+            target = base_path / run_name
+        else:
+            target = Path(project) / default_name
+
+        save_dir = increment_path(target, exist_ok=args.exist_ok if RANK in {-1, 0} else True)
 
     return Path(save_dir).resolve()  # resolve to display full path in console
 
@@ -944,6 +1014,10 @@ def entrypoint(debug: str = "") -> None:
         from ultralytics import FastSAM
 
         model = FastSAM(model)
+    elif "meddef" in stem:
+        from ultralytics import MedDef
+
+        model = MedDef(model)
     elif "sam_" in stem or "sam2_" in stem or "sam2.1_" in stem:
         from ultralytics import SAM
 

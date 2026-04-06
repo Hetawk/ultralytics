@@ -1,0 +1,51 @@
+# Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
+# MedDef1: Robust ResNet for Medical Image Analysis with Unstructured Pruning & Adversarial Training
+# Designed for robustness against adversarial attacks (PGD, FGSM, etc.)
+# Task: Classification
+# Model: MedDef1 (ResNet-based with Adversarial Training and Unstructured Pruning)
+
+# Parameters
+nc: 10  # number of classes (set appropriate value for your dataset)
+task: classify
+
+# MedDef1 architecture parameters
+backbone:
+  # ResNet with adversarial defense
+  - [-1, 1, MedDefResNet, [50, 3, 224]]  # depth, in_channels, img_size
+
+head:
+  # Classification head
+  - [-1, 1, MedDefClassifyHead, [10]]  # num_classes
+
+# Defense configuration
+defenses:
+  adversarial_training:
+    enabled: true
+    attack_method: pgd  # pgd, fgsm, or mixed
+    epsilon: 8/255
+    alpha: 2/255
+    num_steps: 7
+    attack_prob: 0.5  # Apply adversarial training with this probability
+  
+  frequency_defense:
+    enabled: false  # Not used in MedDef1 (pruning handles this)
+  
+  cbam_attention:
+    enabled: true
+    reduction_ratio: 16
+
+# Pruning configuration
+pruning:
+  enabled: true
+  method: unstructured  # unstructured, structured, or none
+  sparsity: 0.5  # 50% sparsity target
+  prune_layers: [conv1, conv2, conv3, conv4, conv5]
+
+# Depth variants with scaling (ResNet depths: 18, 34, 50, 101, 152)
+scales:  # model compound scaling constants
+  # [depth, width_scale]
+  n: [18, 0.5]     # MedDef1n - nano (ResNet18)
+  s: [34, 0.75]    # MedDef1s - small (ResNet34)
+  m: [50, 1.0]     # MedDef1m - medium (ResNet50)
+  l: [101, 1.25]   # MedDef1l - large (ResNet101)
+  x: [152, 1.5]    # MedDef1x - xlarge (ResNet152)

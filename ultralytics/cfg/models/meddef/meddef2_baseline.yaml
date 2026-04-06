@@ -1,0 +1,26 @@
+# Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
+# MedDef2 Baseline - Standard ViT without any defenses
+# Components: ✗ CBAM, ✗ FreqDefense, ✗ PatchConsistency, ✗ DefenseModule
+
+nc: 10
+task: classify
+variant: baseline
+
+defenses:
+  frequency_defense:
+    enabled: false
+  patch_consistency:
+    enabled: false
+  cbam_attention:
+    enabled: false
+  defense_module:
+    enabled: false
+
+distillation:
+  enabled: false
+
+scales:
+  n: [0.5, 0.5, 16, 384, 6]
+  s: [0.75, 0.75, 16, 576, 9]
+  m: [1.0, 1.0, 16, 768, 12]
+  l: [1.25, 1.25, 16, 960, 15]

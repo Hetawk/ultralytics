@@ -36,6 +36,7 @@ from ultralytics.utils import (
     is_github_action_running,
 )
 from ultralytics.utils.downloads import download
+from ultralytics.utils.metrics import ConfusionMatrix
 from ultralytics.utils.torch_utils import TORCH_1_11, TORCH_1_13
 
 
@@ -207,6 +208,68 @@ def test_val(task: str, weight: str, data: str) -> None:
         metrics.confusion_matrix.to_df()
         metrics.confusion_matrix.to_csv()
         metrics.confusion_matrix.to_json()
+
+
+def test_confusion_matrix_plot_classify_has_no_background_ticklabel(monkeypatch, tmp_path):
+    """Ensure classification confusion matrix plots do not add a background class tick label."""
+    from matplotlib.axes import Axes
+
+    captured = {}
+    original_xticklabels = Axes.set_xticklabels
+    original_yticklabels = Axes.set_yticklabels
+
+    def _capture_xticklabels(self, labels, *args, **kwargs):
+        captured["x"] = [str(label) for label in labels]
+        return original_xticklabels(self, labels, *args, **kwargs)
+
+    def _capture_yticklabels(self, labels, *args, **kwargs):
+        captured["y"] = [str(label) for label in labels]
+        return original_yticklabels(self, labels, *args, **kwargs)
+
+    monkeypatch.setattr(Axes, "set_xticklabels", _capture_xticklabels)
+    monkeypatch.setattr(Axes, "set_yticklabels", _capture_yticklabels)
+
+    class_names = {i: f"class_{i}" for i in range(3)}
+    cm = ConfusionMatrix(names=class_names, task="classify")
+    preds = [torch.tensor([[0, 1, 2], [1, 0, 2], [2, 1, 0]], dtype=torch.int32)]
+    targets = [torch.tensor([0, 1, 2], dtype=torch.int32)]
+    cm.process_cls_preds(preds, targets)
+    cm.plot(normalize=True, save_dir=tmp_path)
+
+    expected = [class_names[i] for i in range(len(class_names))]
+    assert captured["x"] == expected
+    assert captured["y"] == expected
+    assert "background" not in captured["x"]
+    assert "background" not in captured["y"]
+
+
+def test_confusion_matrix_plot_detect_keeps_background_ticklabel(monkeypatch, tmp_path):
+    """Ensure detection confusion matrix plots still include the background class tick label."""
+    from matplotlib.axes import Axes
+
+    captured = {}
+    original_xticklabels = Axes.set_xticklabels
+    original_yticklabels = Axes.set_yticklabels
+
+    def _capture_xticklabels(self, labels, *args, **kwargs):
+        captured["x"] = [str(label) for label in labels]
+        return original_xticklabels(self, labels, *args, **kwargs)
+
+    def _capture_yticklabels(self, labels, *args, **kwargs):
+        captured["y"] = [str(label) for label in labels]
+        return original_yticklabels(self, labels, *args, **kwargs)
+
+    monkeypatch.setattr(Axes, "set_xticklabels", _capture_xticklabels)
+    monkeypatch.setattr(Axes, "set_yticklabels", _capture_yticklabels)
+
+    class_names = {i: f"class_{i}" for i in range(2)}
+    cm = ConfusionMatrix(names=class_names, task="detect")
+    cm.matrix = np.array([[10, 0, 0], [0, 8, 1], [0, 2, 0]], dtype=float)
+    cm.plot(normalize=True, save_dir=tmp_path)
+
+    expected = [*class_names.values(), "background"]
+    assert captured["x"] == expected
+    assert captured["y"] == expected
 
 
 @pytest.mark.skipif(IS_JETSON or IS_RASPBERRYPI, reason="Edge devices not intended for training")

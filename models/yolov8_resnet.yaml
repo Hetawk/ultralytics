@@ -1,0 +1,29 @@
+# Ultralytics YOLOv8 detector with a TorchVision ResNet-50 backbone
+# Custom adapters are defined in ultralytics/models/custom_layers.py
+
+nc: 1
+
+backbone:
+  # [from, repeats, module, args]
+  - [-1, 1, TorchVision, [2048, "resnet50", "IMAGENET1K_V1", True, 2, True]]
+  - [0, 1, FeatureSelect, [6, 512]]
+  - [-1, 1, YOLOv8BackboneAdapter, [512, 320, 2, False, 0.5]]
+  - [0, 1, FeatureSelect, [7, 1024]]
+  - [-1, 1, YOLOv8BackboneAdapter, [1024, 512, 3, False, 0.5]]
+  - [0, 1, FeatureSelect, [8, 2048]]
+  - [-1, 1, YOLOv8BackboneAdapter, [2048, 768, 3, True, 0.5]]
+
+head:
+  - [6, 1, nn.Upsample, [None, 2, "nearest"]]
+  - [[-1, 4], 1, Concat, [1]]
+  - [-1, 2, C2f, [512, True]]
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
+  - [[-1, 2], 1, Concat, [1]]
+  - [-1, 2, C2f, [320, True]]
+  - [-1, 1, Conv, [320, 3, 2]]
+  - [[-1, 9], 1, Concat, [1]]
+  - [-1, 2, C2f, [512, True]]
+  - [-1, 1, Conv, [512, 3, 2]]
+  - [[-1, 6], 1, Concat, [1]]
+  - [-1, 2, C2f, [768, True]]
+  - [[12, 15, 18], 1, YOLOv8DetectHead, [nc]]

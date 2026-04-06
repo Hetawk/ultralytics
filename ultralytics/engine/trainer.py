@@ -52,6 +52,7 @@ from ultralytics.utils.torch_utils import (
     attempt_compile,
     autocast,
     convert_optimizer_state_dict_to_fp16,
+    get_flops,
     init_seeds,
     one_cycle,
     select_device,
@@ -179,6 +180,7 @@ class BaseTrainer:
             self.csv.unlink()
         self.plot_idx = [0, 1, 2]
         self.nan_recovery_attempts = 0
+        self.gflops = 0.0  # will be computed during _setup_train
 
         # Callbacks
         self.callbacks = _callbacks or callbacks.get_default_callbacks()
@@ -332,6 +334,12 @@ class BaseTrainer:
         )
         self.validator = self.get_validator()
         self.ema = ModelEMA(self.model)
+
+        # Compute GFLOPs for logging
+        if RANK in {-1, 0}:
+            self.gflops = round(get_flops(self.model, imgsz=self.args.imgsz), 3)
+            LOGGER.info(f"Model GFLOPs: {self.gflops}")
+
         if RANK in {-1, 0}:
             metric_keys = self.validator.metrics.keys + self.label_loss_items(prefix="val")
             self.metrics = dict(zip(metric_keys, [0] * len(metric_keys)))
@@ -585,6 +593,18 @@ class BaseTrainer:
         """Save model training checkpoints with additional metadata."""
         import io
 
+        optimizer_state = None
+        try:
+            optimizer_state = convert_optimizer_state_dict_to_fp16(deepcopy(self.optimizer.state_dict()))
+        except RuntimeError as e:
+            # On heavily shared GPUs, optimizer-state deepcopy can OOM during checkpointing.
+            # Fallback to saving model/EMA without optimizer to preserve progress.
+            if "out of memory" in str(e).lower():
+                self._clear_memory()
+                LOGGER.warning("Checkpoint save: CUDA OOM while copying optimizer state, saving without optimizer.")
+            else:
+                raise
+
         # Serialize ckpt to a byte buffer once (faster than repeated torch.save() calls)
         buffer = io.BytesIO()
         torch.save(
@@ -594,7 +614,7 @@ class BaseTrainer:
                 "model": None,  # resume and final checkpoints derive from EMA
                 "ema": deepcopy(unwrap_model(self.ema.ema)).half(),
                 "updates": self.ema.updates,
-                "optimizer": convert_optimizer_state_dict_to_fp16(deepcopy(self.optimizer.state_dict())),
+                "optimizer": optimizer_state,
                 "scaler": self.scaler.state_dict(),
                 "train_args": vars(self.args),  # save as dict
                 "train_metrics": {**self.metrics, **{"fitness": self.fitness}},
@@ -755,14 +775,14 @@ class BaseTrainer:
         pass
 
     def save_metrics(self, metrics):
-        """Save training metrics to a CSV file."""
+        """Save training metrics to a CSV file, including GFLOPs."""
         keys, vals = list(metrics.keys()), list(metrics.values())
-        n = len(metrics) + 2  # number of cols
+        n = len(metrics) + 3  # number of cols: epoch, time, GFLOPs, plus all metrics
         t = time.time() - self.train_time_start
         self.csv.parent.mkdir(parents=True, exist_ok=True)  # ensure parent directory exists
-        s = "" if self.csv.exists() else (("%s," * n % tuple(["epoch", "time", *keys])).rstrip(",") + "\n")  # header
+        s = "" if self.csv.exists() else (("%s," * n % tuple(["epoch", "time", "GFLOPs", *keys])).rstrip(",") + "\n")
         with open(self.csv, "a", encoding="utf-8") as f:
-            f.write(s + ("%.6g," * n % tuple([self.epoch + 1, t, *vals])).rstrip(",") + "\n")
+            f.write(s + ("%.6g," * n % tuple([self.epoch + 1, t, self.gflops, *vals])).rstrip(",") + "\n")
 
     def plot_metrics(self):
         """Plot metrics from a CSV file."""

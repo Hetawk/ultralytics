@@ -1,0 +1,264 @@
+================================================================================
+  ALL CLASSIFY RUNS — HYPERPARAMETER & PERFORMANCE REFERENCE
+  Generated: 2026-04-03
+  Server: enoch@192.168.252.237  ~/ekd_coding_env/ultralytics/runs/classify/
+================================================================================
+
+LEGEND
+  top1         = Best validation Top-1 accuracy (%)
+  f1_mac       = Macro F1-score (%) [only runs with full evaluation]
+  bal_acc      = Balanced accuracy (%) [only runs with full evaluation]
+  mcc          = Matthews Correlation Coefficient  [full eval only]
+  roc_auc      = ROC-AUC  [full eval only]
+  *            = No full evaluation (metrics.json absent); top1 from results.csv only
+
+================================================================================
+  DATASET: TBCR  (Tuberculosis Chest X-Ray — 2-class, 420 val samples)
+================================================================================
+
+--- BEST PERFORMING RUNS (sorted by top1) ---
+
+#  top1    f1_mac  bal_acc  mcc     roc_auc  run                         variant
+-- ------ -------- -------- ------- -------- --------------------------- ----------------
+1  97.62* —        —        —       —        train_tbcr_legacy_v2_impr1  no_freq_small
+2  96.43* —        —        —       —        train_tbcr_legacy_v2_impr2  full_small (csv)
+3  96.19  92.72   90.29    0.8581  0.9750   train_tbcr_legacy_v2_impr1  full_small   ★ BEST FULL EVAL
+4  95.95  92.31   90.14    0.8492  0.9867   train (multic run dir)       tbcr/full    ★ BEST ROC-AUC
+5  95.95  92.11   89.00    0.8488  0.9093   train_run_010_legacy_plus    no_patch_small
+6  95.95  91.90   87.86    0.8497  0.9685   train_run_010_legacy_plus    no_cbam_small
+7  95.95  92.01   88.43    0.8491  0.9618   train_tbcr_legacy_v2_impr1  no_cbam_small
+8  95.71  91.48   87.71    0.8398  0.9329   tbcr/train (archive)         no_freq       [100ep]
+9  95.71* —        —        —       —        train_tbcr_legacy_v2_impr1  no_patch_small
+10 95.71  91.90   87.86    0.8497  0.9685   train_run_010_legacy_plus    no_cbam_small
+11 95.48  90.83   86.43    0.8313  0.9674   tbcr/train (archive)         full          [100ep]
+12 95.48  90.83   86.43    0.8313  0.9545   tbcr/train (archive)         no_patch      [100ep]
+13 95.48  90.83   86.43    0.8313  0.9073   train_run_013_tbcr_95push    no_cbam_small
+14 95.48  91.41   89.29    0.8311  0.9640   train_tbcr_legacy_v2_impr2  no_cbam_small
+15 95.00* —        —        —       —        train_run_010_legacy_plus    full_small
+16 95.00* —        —        —       —        train_tbcr_legacy_v2_impr2  no_freq_small (csv)
+17 94.52  88.58   83.57    0.7937  0.9716   train_tbcr_legacy_v2_impr1  no_def_small
+18 94.52  88.90   84.71    0.7922  0.9500   train_run_013_tbcr_95push    no_patch_small
+19 94.05  87.41   82.14    0.7746  0.8838   tbcr/archive                 no_cbam       [100ep]
+20 93.81  87.00   82.00    0.7637  0.8464   train_tbcr_legacy_v2_impr1  baseline_small
+21 93.57  87.14   83.57    0.7535  0.8616   train_tbcr_legacy_v2_impr2  baseline_small
+22 93.33* —        —        —       —        train_tbcr_legacy_v2         baseline_small
+23 93.10  84.95   79.29    0.7355  0.8693   tbcr/archive                 no_def        [100ep]
+24 93.10  85.17   79.86    0.7341  0.8478   train_tbcr_legacy_v2_impr2  no_patch_small
+25 92.86  84.31   78.57    0.7255  0.9659   train_run_013_tbcr_95push    no_freq_small
+26 92.86  84.31   78.57    0.7255  0.9406   train_run_tbcr_smart_*       full_small
+27 92.14  82.33   76.43    0.6950  0.8393   tbcr/archive                 baseline      [100ep]
+28 92.14  82.33   76.43    0.6950  0.8744   train_run_013_tbcr_95push    no_def_small
+29 92.14  82.33   76.43    0.6950  0.9006   train_run_tbcr_smart_*       no_cbam_small
+30 92.14  82.33   76.43    0.6950  0.8183   train_run_tbcr_smart_*       no_def_small
+31 92.14  82.87   77.57    0.6924  0.9056   train_tbcr_legacy_v2_impr2  no_freq_small
+32 91.67  80.95   75.00    0.6742  0.8807   train_run_013_tbcr_95push    full_small
+33 91.67  80.95   75.00    0.6742  0.8937   train_run_tbcr_smart_*       no_freq_small
+34 91.67  80.95   75.00    0.6742  0.8256   train_tbcr_legacy_v2_impr2  full_small
+35 91.19* —        —        —       —        train_tbcr_robust_v1         no_freq_base
+36 90.24* —        —        —       —        train_run_010_legacy_plus    no_freq_small
+37 85.00* —        —        —       —        train_tbcr_legacy_v2         full_small
+38 83.33  45.45   50.00    0.0000  0.5771   train_run_013_tbcr_95push    baseline_small [collapsed]
+39 83.33  45.45   50.00    0.0000  0.6247   train_run_tbcr_smart_*       baseline_small [collapsed]
+40 83.33* —        —        —       —        train_tbcr_legacy_v2         no_def/no_freq_small
+41 83.33* —        —        —       —        train_tbcr_robust_v1         baseline/full/no_cbam_base
+42 16.67* —        —        —       —        train_tbcr_robust_v1         no_def_base   [FAILED]
+
+--- TBCR HYPERPARAMETER EVOLUTION ---
+
+Run name                      epochs  batch  lr0      lrf   drop  patience  notes
+---------------------------- ------- ------ -------- ----- ----- --------- -------------------------
+tbcr (archive run_001)         100     16    0.00100  0.01  0.00  50/100    Original ablation
+train (multic dir / tbcr)      150     32    0.00100  0.01  0.30  50        Tried batch32 + dropout
+train_run_010_legacy_plus      140     16    0.00100  0.01  0.00  120       Extended patience
+train_run_013_tbcr_95push      140     16    0.00100  0.01  0.00  120       Same as 010
+train_tbcr_legacy_v2           140     16    0.00100  0.01  0.00  120       Baseline v2 (underfitting)
+train_tbcr_legacy_v2_impr1     160     16    0.00080  0.01  0.00  140  ★★★ BEST: reduced lr0, more epochs
+train_tbcr_legacy_v2_impr2     170     16    0.00115  0.01  0.00  150       Slightly higher lr0 (worse)
+train_tbcr_robust_v1           120     16    0.00070  0.05  0.10  35        Robust config (FAILED)
+train_run_tbcr_smart_*         100     16    0.00100  0.01  0.00  50        Shortrun on all GPUs
+
+--- TBCR: BEST HYPERPARAMETERS (RECOMMENDED FOR FUTURE USE) ---
+
+  model          : meddef2.yaml                (full model, all components active)
+  epochs         : 160
+  batch          : 16
+  imgsz          : 224
+  optimizer      : AdamW
+  lr0            : 0.0008                      (key: lower lr0 than 0.001 gives +2-3%)
+  lrf            : 0.01
+  weight_decay   : 0.0005
+  dropout        : 0.0                         (dropout hurts TBCR)
+  warmup_epochs  : 3.0
+  patience       : 140                         (must be high relative to epochs)
+  auto_augment   : randaugment
+  erasing        : 0.4
+  cos_lr         : false
+  amp            : false
+
+  KEY FINDING: lr0=0.0008 + epochs=160 + patience=140 is the sweet spot.
+  Increasing lr0 to 0.00115 (impr2) slightly degrades performance.
+  batch=32 with dropout=0.3 (train/) gives similar top1 but better ROC-AUC (0.9867).
+
+--- TBCR ABLATION CONCLUSIONS ---
+
+  full model (meddef2.yaml)  > no_cbam > no_patch > no_freq > no_def > baseline
+  
+  - CBAM attention contributes ~0.2% top1 and +0.7% F1 macro
+  - Frequency branch contributes ~0.5% top1 (but no_freq_small hit 97.62% — investigate)
+  - Patch defense contributes ~0.7% top1
+  - Defense module contributes ~1.5% top1 / ~4% F1 macro
+  - Baseline (no defense, no extras) is the floor at 93-94%
+
+================================================================================
+  DATASET: MULTIC  (Multi-class, 9 classes)
+================================================================================
+
+#  top1    f1_mac  bal_acc  run          variant         epochs  lr0
+-- ------ -------- -------- ------------ --------------- ------- -------
+1  98.01* —        —        train        multic/full     unknown unknown   ★★★ BEST
+2  94.61* —        —        train        multic/no_patch unknown unknown
+
+  NOTE: MULTIC only has results.csv (no metrics.json full eval yet).
+  The train/multic/full result at 98.01% is the best single result across ALL datasets.
+
+  RECOMMENDED: Run full evaluation (evaluate.py) on train/multic/full best.pt
+  to get F1, ROC-AUC, and per-class metrics before starting defense evaluation.
+
+--- MULTIC BEST HYPERPARAMETERS ---
+  (need to verify from args.yaml — full eval pending)
+  Likely same as TBCR optimal: lr0=0.0008, epochs=150-160, batch=16-32
+
+================================================================================
+  DATASET: CCTS  (Skin/Cancer multi-class — 9 classes)
+================================================================================
+
+#  top1    f1_mac  run                      variant
+-- ------ -------- ------------------------ ----------------
+1  58.30* —        train                    ccts/no_freq
+2  57.56* —        train                    ccts/no_cbam
+3  57.20* —        train_ccts_robust_v1     no_freq_base
+4  56.09* —        train                    ccts/no_patch
+5  55.72* —        train                    ccts/full
+6  54.98* —        train_ccts_robust_v1     full_base
+7  54.24* —        train_ccts_robust_v1     no_patch_base
+8  52.77* —        train                    ccts/no_def
+9  50.92* —        train_ccts_robust_v1     no_cbam_base
+10 49.81* —        train                    ccts/baseline
+11 49.45* —        train_ccts_legacy_v2     no_def_small
+12 44.28* —        train_ccts_legacy_v2     full_small
+13 44.28* —        train_ccts_robust_v1     no_def_base
+14 41.33* —        train_ccts_legacy_v2     no_freq_small
+15 38.01* —        train_ccts_legacy_v2     baseline_small
+16 37.64* —        train_ccts_robust_v1     baseline_base
+17 36.53* —        train_ccts_legacy_v2     no_patch_small
+18 34.32* —        train_ccts_robust_v1_impr1  (all variants — FAILED)
+19 34.32* —        train_ccts_legacy_v2     no_cbam_small
+
+  NOTE: CCTS is significantly harder than TBCR/MULTIC (9-class skin conditions).
+  Best run (train/ccts/no_freq, 58.3%) is the `train` directory which uses
+  likely the same good hyperparameters as TBCR. CCTS needs more dedicated tuning.
+  The no_freq variant leading is unusual — suggests frequency branch may be
+  causing overfitting on CCTS. More epochs or stronger aug needed.
+
+================================================================================
+  DATASET: SCISIC  (9-class) — STATUS: MOSTLY FAILED
+================================================================================
+
+  Best result: archive/run_001/scisic/no_cbam = 51.91%
+  Most runs: 16-20% (random/collapsed training)
+  
+  Cause: Very small batch (2) used in targeted/rescue runs led to training collapse.
+  Runs 018, 019, 020 all failed with batch=2.
+
+  The only viable SCISIC results are from `archive/run_001` and `train/scisic/*`
+  but even those peak at 37-52%, suggesting SCISIC needs different treatment
+  (longer training, class balancing, larger batch, or cosine LR scheduler).
+
+================================================================================
+  DATASET: DERMNET  — STATUS: FAILED / UNDERTRAINED
+================================================================================
+
+  Best result: train/dermnet/full = 16.15%
+  All variants: 8-16%
+  
+  DermNet is a large multi-class dataset; current training config is insufficient.
+  Needs: extended epochs (200+), batch=32+, cosine LR, likely pretrained init.
+
+================================================================================
+  RUNS TO KEEP (on server — best.pt preserved for defense evaluation)
+================================================================================
+
+  TBCR:
+  ✅ runs/classify/train_tbcr_legacy_v2_impr1/tbcr/  — BEST TBCR (all variants)
+  ✅ runs/classify/train/tbcr/                        — Good second set (ROC 0.9867)
+  ✅ runs/classify/archive/run_001_*/tbcr/            — Original reference ablation
+  ✅ runs/classify/train_run_010_legacy_plus/tbcr/    — Strong secondary results
+
+  MULTIC:
+  ✅ runs/classify/train/multic/                      — BEST MULTIC (98.01%)
+
+  CCTS:
+  ✅ runs/classify/train/ccts/                        — Best CCTS results (~58%)
+  ✅ runs/classify/train_ccts_robust_v1/ccts/         — Second best (~57%)
+
+  SCISIC:
+  ✅ runs/classify/archive/run_001_*/scisic/          — Only acceptable SCISIC results
+  ✅ runs/classify/train/scisic/                      — Reference (even if low)
+
+  DERMNET:
+  ✅ runs/classify/train/dermnet/                     — Reference baseline
+
+================================================================================
+  RUNS TO DELETE (redundant / lower-performing / failed)
+================================================================================
+
+  TBCR duplicates / lower performers:
+  ❌ runs/classify/train_tbcr_legacy_v2/              — superseded by impr1 (85-93%)
+  ❌ runs/classify/train_tbcr_robust_v1/              — largely FAILED (<91%, no_def=16%)
+  ❌ runs/classify/train_tbcr_legacy_v2_impr2/        — worse than impr1 (91-95%)
+  ❌ runs/classify/train_run_013_tbcr_95push/         — worse than impr1 (92-95%)
+  ❌ runs/classify/train_run_tbcr_smart_20260318_allgpu/ — worse (91-92%)
+  ❌ runs/classify/train_run_012_robust_ft_20260312_fix1/ — only 83% TBCR
+
+  SCISIC failed runs:
+  ❌ runs/classify/train_run_018_scisic_targeted_20260312_121506/
+  ❌ runs/classify/train_run_018_scisic_targeted_shared_20260312_122736/
+  ❌ runs/classify/train_run_019_scisic_rescue6_20260312_124208/
+  ❌ runs/classify/train_run_020_scisic_rescue6_ckptfix_20260312_131129/
+  ❌ runs/classify/train_run_014_sanity_ablation_20260312/    — 5.53% sanity only
+  ❌ runs/classify/train_run_015_ablation_medium_20260312/    — 16.6% failed
+
+  CCTS failed:
+  ❌ runs/classify/train_ccts_legacy_v2/              — peak 49%, worse than train/ccts
+  ❌ runs/classify/train_ccts_robust_v1_impr1/        — 34% FAILED completely
+
+  NOTE: Do NOT delete until you have confirmed best.pt in the KEEP list is intact
+  and you have run defense evaluation on them.
+
+================================================================================
+  DEFENSE EVALUATION PRIORITY ORDER
+================================================================================
+
+  Priority  Dataset  Run dir                             top1    Notes
+  --------  -------  ----------------------------------  ------  ---------------
+  1 (HIGH)  TBCR     train_tbcr_legacy_v2_impr1          96.19%  Full eval ready
+  2 (HIGH)  MULTIC   train/multic/full                   98.01%  Need full eval first
+  3 (MED)   TBCR     train/tbcr/full                     95.95%  Full eval ready
+  4 (MED)   TBCR     train_run_010_legacy_plus            95.95%  Full eval ready
+  5 (LOW)   CCTS     train/ccts/no_freq                  58.30%  Full eval needed
+  6 (LOW)   CCTS     train_ccts_robust_v1/no_freq_base   57.20%  Full eval needed
+
+  SKIP for now: SCISIC (all failed), DERMNET (undertrained)
+
+================================================================================
+  RECOMMENDED NEXT DATASET (after TBCR defense eval is done)
+================================================================================
+
+  1. MULTIC  — already has excellent baseline (98.01%), low-hanging fruit
+  2. CCTS    — needs hyperparameter tuning refresh with best TBCR params
+  3. SCISIC  — needs fresh full training run with batch=16, lr0=0.0008, epochs=160-200
+  4. DERMNET — needs major overhaul (extended training 200+ epochs, cosine LR)
+
+================================================================================
+  END OF SUMMARY
+================================================================================

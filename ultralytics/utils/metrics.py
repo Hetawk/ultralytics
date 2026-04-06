@@ -517,7 +517,10 @@ class ConfusionMatrix(DataExportMixin):
             array = array[keep_idx, :][:, keep_idx]  # slice matrix rows and cols
             n = (self.nc + k - 1) // k  # number of retained classes
         nc = nn = n if self.task == "classify" else n + 1  # adjust for background if needed
-        ticklabels = ([*names, "background"]) if (0 < nn < 99) and (nn == nc) else "auto"
+        if 0 < nn < 99:
+            ticklabels = names if self.task == "classify" else [*names, "background"]
+        else:
+            ticklabels = "auto"
         xy_ticks = np.arange(len(ticklabels))
         tick_fontsize = max(6, 15 - 0.1 * nc)  # Minimum size is 6
         label_fontsize = max(6, 12 - 0.1 * nc)
@@ -555,10 +558,13 @@ class ConfusionMatrix(DataExportMixin):
         if ticklabels != "auto":
             ax.set_xticklabels(ticklabels, fontsize=tick_fontsize, rotation=90, ha="center")
             ax.set_yticklabels(ticklabels, fontsize=tick_fontsize)
-        for s in {"left", "right", "bottom", "top", "outline"}:
-            if s != "outline":
+        for s in ("left", "right", "bottom", "top"):
+            if s in ax.spines:
                 ax.spines[s].set_visible(False)  # Confusion matrix plot don't have outline
-            cbar.ax.spines[s].set_visible(False)
+            if s in cbar.ax.spines:
+                cbar.ax.spines[s].set_visible(False)
+        if "outline" in cbar.ax.spines:  # Matplotlib >= 3.4
+            cbar.ax.spines["outline"].set_visible(False)
         fig.subplots_adjust(left=0, right=0.84, top=0.94, bottom=btm)  # Adjust layout to ensure equal margins
         plot_fname = Path(save_dir) / f"{title.lower().replace(' ', '_')}.png"
         fig.savefig(plot_fname, dpi=250)

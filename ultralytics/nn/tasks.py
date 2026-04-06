@@ -3,12 +3,33 @@
 import contextlib
 import pickle
 import re
+import sys
 import types
 from copy import deepcopy
 from pathlib import Path
 
 import torch
 import torch.nn as nn
+
+CUSTOM_MODEL_DIR = Path(__file__).resolve().parents[2] / "models"
+if CUSTOM_MODEL_DIR.exists():
+    custom_dir_str = str(CUSTOM_MODEL_DIR)
+    if custom_dir_str not in sys.path:
+        sys.path.append(custom_dir_str)
+
+try:
+    from custom_layers import (  # type: ignore
+        FeatureSelect,
+        YOLOv8BackboneAdapter,
+        YOLOv8DetectHead,
+        YOLOv8VGGBackboneAdapter,
+        YOLOv8VGGDetect,
+    )
+except ImportError as exc:  # pragma: no cover - runtime guard for missing helpers
+    raise ImportError(
+        "Could not import custom YOLO helpers from ultralytics/models/custom_layers.py. "
+        "Ensure the file exists and is on PYTHONPATH."
+    ) from exc
 
 from ultralytics.nn.autobackend import check_class_names
 from ultralytics.nn.modules import (
@@ -1231,6 +1252,161 @@ class YOLOESegModel(YOLOEModel, SegmentationModel):
         return self.criterion(preds, batch)
 
 
+class MedDefModel(ClassificationModel):
+    """MedDef (Medical Defense) Classification Model.
+
+    This class extends ClassificationModel to provide robust medical image classification with integrated
+    defense mechanisms against adversarial attacks. Supports both MedDef1 (ResNet-based with adversarial training)
+    and MedDef2 (Transformer-based with defensive distillation).
+
+    Features:
+    - Frequency domain defense (low-pass filtering for adversarial noise suppression)
+    - Patch consistency enforcement (Vision Transformers)
+    - CBAM attention for feature refinement
+    - Defensive distillation for robust training
+    - Adversarial training support
+
+    Attributes:
+        yaml (dict): Model configuration dictionary.
+        model (torch.nn.Sequential): The neural network model.
+        names (dict): Class names dictionary.
+        defenses (dict): Defense configuration settings.
+
+    Methods:
+        __init__: Initialize MedDefModel.
+        init_criterion: Initialize the loss criterion with optional distillation.
+        forward_robust: Forward pass with defense mechanisms.
+
+    Examples:
+        Initialize a MedDef2 model
+        >>> model = MedDefModel("meddef2.yaml", ch=3, nc=10)
+        >>> results = model.predict(image_tensor)
+
+        Train with adversarial robustness
+        >>> model = MedDefModel("meddef1.yaml", ch=3, nc=10)
+        >>> model.train(data="medical_dataset", epochs=100)
+    """
+
+    def __init__(self, cfg: str = "meddef2.yaml", ch: int = 3, nc: int = None, verbose: bool = True):
+        """Initialize MedDefModel with robust medical imaging configuration.
+
+        Args:
+            cfg (str | dict): Model configuration file path or dictionary.
+            ch (int): Number of input channels (default 3 for RGB, use 1 for grayscale).
+            nc (int, optional): Number of classes.
+            verbose (bool): Whether to display model information.
+        """
+        # Don't call parent __init__ - we override _from_yaml
+        BaseModel.__init__(self)
+        self._from_yaml(cfg, ch, nc, verbose)
+        
+        # Store defense configuration if available in YAML
+        if isinstance(self.yaml, dict):
+            self.defenses = self.yaml.get('defenses', {})
+            self.distillation_config = self.yaml.get('distillation', {})
+        else:
+            self.defenses = {}
+            self.distillation_config = {}
+
+    def _from_yaml(self, cfg, ch, nc, verbose):
+        """Build MedDef model by delegating to the dedicated model_builder module.
+
+        All variant-dispatch and scale-resolution logic lives in
+        ``ultralytics.models.meddef.model_builder`` — this method is
+        intentionally thin so that ``tasks.py`` stays focused on the
+        Ultralytics task registry.
+
+        Args:
+            cfg (str | dict): YAML path or pre-parsed dict.
+            ch (int): Input channels.
+            nc (int | None): Number of classes (overrides YAML if provided).
+            verbose (bool): Print model info after build.
+        """
+        from ultralytics.models.meddef.model_builder import build_meddef_model
+
+        self.yaml = cfg if isinstance(cfg, dict) else yaml_model_load(cfg)
+
+        # Resolve class count
+        self.yaml["channels"] = self.yaml.get("channels", ch)
+        if nc and nc != self.yaml.get("nc"):
+            LOGGER.info(f"Overriding model.yaml nc={self.yaml.get('nc')} with nc={nc}")
+            self.yaml["nc"] = nc
+        elif not nc and not self.yaml.get("nc"):
+            raise ValueError("nc not specified. Must set nc in model.yaml or pass nc= explicitly.")
+
+        # Delegate construction to model_builder
+        self.model  = build_meddef_model(self.yaml, ch=self.yaml["channels"], nc=self.yaml["nc"])
+        self.stride = torch.Tensor([1])
+        self.names  = {i: f"{i}" for i in range(self.yaml["nc"])}
+        self.save   = []
+
+        if verbose:
+            self.info()
+
+    def _apply(self, fn):
+        """Apply ``fn`` to all tensors, bypassing BaseModel's YOLO detection-head handling.
+
+        ``BaseModel._apply`` does ``self.model[-1]`` to update Detect() stride/anchors.
+        MedDef2 models are ViT classifiers — ``self.model`` is a single ``nn.Module``,
+        not a subscriptable sequence, so we delegate straight to ``nn.Module._apply``.
+        """
+        return torch.nn.Module._apply(self, fn)
+
+    def init_criterion(self):
+        """Initialize the loss criterion for MedDefModel with optional distillation."""
+        from ultralytics.nn.modules.defense import DefensiveDistillationLoss
+        
+        # Check if distillation is enabled
+        if self.distillation_config.get('enabled', False):
+            temp = self.distillation_config.get('temperature', 4.0)
+            alpha = self.distillation_config.get('alpha', 0.5)
+            return DefensiveDistillationLoss(temperature=temp, alpha=alpha)
+        else:
+            # Standard classification loss
+            return v8ClassificationLoss()
+
+    def forward(self, x: torch.Tensor, *args, **kwargs) -> torch.Tensor:
+        """Forward pass through MedDef model.
+
+        Follows the Ultralytics BaseModel convention:
+          - dict input  → training path → ``self.loss(x)``
+          - tensor input → inference path → raw ViT forward pass
+
+        Args:
+            x (torch.Tensor | dict): Image tensor for inference, or batch
+                dict ``{'img': tensor, 'cls': tensor}`` during training.
+
+        Returns:
+            torch.Tensor | tuple: Loss tuple during training, logits during inference.
+        """
+        if isinstance(x, dict):
+            # Training / val-while-training: delegate to loss() which extracts
+            # batch['img'] and calls forward(tensor) recursively.
+            return self.loss(x, *args, **kwargs)
+        # Inference path: auto-cast input to match model dtype (handles AMP fp16/fp32 mismatch)
+        param = next(self.model.parameters(), None)
+        if param is not None and x.dtype != param.dtype:
+            x = x.to(param.dtype)
+        return self.model(x)
+
+    def forward_robust(self, x: torch.Tensor, augment: bool = False, visualize: bool = False) -> torch.Tensor:
+        """Forward pass with integrated defense mechanisms.
+
+        Args:
+            x (torch.Tensor): Input tensor.
+            augment (bool): Whether to use augmented inference.
+            visualize (bool): Whether to visualize features.
+
+        Returns:
+            torch.Tensor): Model output logits.
+        """
+        # Forward pass through base model
+        if hasattr(self.model, 'forward_robust'):
+            return self.model.forward_robust(x)
+        else:
+            return self.forward(x)
+
+
 class Ensemble(torch.nn.ModuleList):
     """Ensemble of models.
 
@@ -1619,12 +1795,29 @@ def parse_model(d, ch, verbose=True):
                 n = 1
         elif m is ResNetLayer:
             c2 = args[1] if args[3] else args[1] * 4
+        elif m in frozenset({YOLOv8BackboneAdapter, YOLOv8VGGBackboneAdapter}):
+            c2 = args[1]
+        elif m is FeatureSelect:
+            c2 = args[1]
+            args = [args[0]]
         elif m is torch.nn.BatchNorm2d:
             args = [ch[f]]
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
         elif m in frozenset(
-            {Detect, WorldDetect, YOLOEDetect, Segment, YOLOESegment, Pose, OBB, ImagePoolingAttn, v10Detect}
+            {
+                Detect,
+                WorldDetect,
+                YOLOEDetect,
+                Segment,
+                YOLOESegment,
+                Pose,
+                OBB,
+                ImagePoolingAttn,
+                v10Detect,
+                YOLOv8DetectHead,
+                YOLOv8VGGDetect,
+            }
         ):
             args.append([ch[x] for x in f])
             if m is Segment or m is YOLOESegment:

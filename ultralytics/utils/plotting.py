@@ -594,7 +594,19 @@ def plot_labels(boxes, cls, names=(), save_dir=Path(""), on_plot=None):
     if 0 < len(names) < 30:
         ax[0].set_xticks(range(len(names)))
         ax[0].set_xticklabels(list(names.values()), rotation=90, fontsize=10)
-        ax[0].bar_label(y[2])
+        if hasattr(ax[0], "bar_label"):
+            ax[0].bar_label(y[2])
+        else:  # Matplotlib < 3.4 compatibility
+            for rect in y[2]:
+                height = rect.get_height()
+                ax[0].text(
+                    rect.get_x() + rect.get_width() / 2,
+                    height,
+                    f"{int(height)}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=9,
+                )
     else:
         ax[0].set_xlabel("classes")
     boxes = np.column_stack([0.5 - boxes[:, 2:4] / 2, 0.5 + boxes[:, 2:4] / 2]) * 1000

@@ -143,6 +143,7 @@ dmypy.json
 # datasets and projects (ignore /datasets dir at root only to allow for docs/en/datasets dir)
 /datasets
 runs/
+logs/
 wandb/
 .DS_Store
 
@@ -150,6 +151,8 @@ wandb/
 weights/
 *.weights
 *.pt
+*.pth
+*.ckpt
 *.ts
 *.pb
 *.onnx
@@ -174,3 +177,22 @@ pnnx*
 
 # calibration image
 calibration_*.npy
+
+# Additional local/project-specific sensitive files to ignore
+# Ignore dataset token files (keeps dataset images/annotations tracked but hides per-dataset tokens)
+dataset/**/token.txt
+**/token.txt
+
+# Common private/key/certificate files
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+
+# More env variants
+.env.local
+.env.*.local
+
+# Prevent committing local docs overrides that might contain embedded API keys
+docs/overrides/javascript/extra.js
+dataset/

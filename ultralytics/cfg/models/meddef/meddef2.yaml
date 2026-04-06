@@ -1,0 +1,49 @@
+# Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
+# MedDef2: Robust Vision Transformer for Medical Image Analysis with Defensive Distillation
+# Designed for robustness against adversarial attacks (PGD, FGSM, etc.)
+# Task: Classification
+# Model: MedDef2_T (Transformer-based with Frequency Defense, Patch Consistency, CBAM)
+
+# Parameters
+nc: 10  # number of classes (set appropriate value for your dataset)
+task: classify
+
+# MedDef2 architecture parameters
+backbone:
+  # Vision Transformer with defensive components
+  - [-1, 1, MedDefVisionTransformer, [224, 16, 3, 768, 12, 12, 4, 0, 0, 0]]  # img_size, patch_size, in_channels, embed_dim, depth, num_heads, mlp_ratio, drop_rate, attn_drop_rate, drop_path_rate
+
+head:
+  # Classification head
+  - [-1, 1, MedDefClassifyHead, [10]]  # num_classes
+
+# Defense configuration (integrated into model)
+defenses:
+  frequency_defense:
+    enabled: true
+    cutoff_ratio: 0.5  # Keep 50% of low frequencies
+  
+  patch_consistency:
+    enabled: true
+    threshold: 1.0
+    smooth_factor: 0.5
+  
+  cbam_attention:
+    enabled: true
+    reduction_ratio: 16
+
+# Distillation configuration (for training)
+distillation:
+  enabled: true
+  temperature: 4.0
+  alpha: 0.5  # weight for distillation loss
+  teacher_model: null  # Will be set during training
+
+# Depth variants with scaling
+scales:  # model compound scaling constants
+  # [depth_scale, width_scale, patch_size, embed_dim, num_heads]
+  n: [0.5, 0.5, 16, 384, 6]     # MedDef2n - nano
+  s: [0.75, 0.75, 16, 576, 9]   # MedDef2s - small  
+  m: [1.0, 1.0, 16, 768, 12]    # MedDef2m - medium (base)
+  l: [1.25, 1.25, 16, 960, 15]  # MedDef2l - large
+  x: [1.5, 1.5, 16, 1152, 18]   # MedDef2x - xlarge
