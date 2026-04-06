@@ -82,6 +82,10 @@ GPU_COOLDOWN_SECS="${GPU_COOLDOWN_SECS:-90}"
 # How many times an OOM-failed job is automatically retried before giving up.
 MAX_RETRIES="${MAX_RETRIES:-3}"
 
+# How many epochs distillation is configured for (must match distill_tbcr_final.sh).
+# Used to verify training actually finished before evaluating the weights.
+DISTILL_EPOCHS="${DISTILL_EPOCHS:-100}"
+
 # Stages: "both" | "stage1" | "distill"
 STAGE="${STAGE:-both}"
 VARIANTS="${VARIANTS:-full no_def no_freq no_patch no_cbam baseline}"
@@ -244,7 +248,29 @@ job_pid_alive() {
     [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null
 }
 
-distill_weights_ready() { [[ -f "$(distill_weights "$1")" ]]; }
+distill_weights_ready() {
+    # Check best.pt exists
+    local best; best="$(distill_weights "$1")"
+    [[ -f "$best" ]] || return 1
+    # Verify training actually finished (epoch in last.pt >= DISTILL_EPOCHS - 1)
+    local last; last="${best%best.pt}last.pt"
+    if [[ -f "$last" ]]; then
+        local epoch
+        epoch=$(python3 - "$last" <<'PY'
+import sys, torch
+try:
+    ckpt = torch.load(sys.argv[1], map_location="cpu")
+    print(int(ckpt.get("epoch", -1)))
+except Exception:
+    print(-1)
+PY
+)
+        [[ "$epoch" =~ ^[0-9]+$ ]] && [[ "$epoch" -ge $((DISTILL_EPOCHS - 1)) ]] && return 0
+        return 1   # training still in progress
+    fi
+    # No last.pt but best.pt exists — training finished and last.pt was cleaned up
+    return 0
+}
 
 # ── Launch a single eval job ──────────────────────────────────────────────────
 launch_eval() {
@@ -440,8 +466,8 @@ cmd_dry_run() {
         if [[ -f "$w1" ]]; then echo "$PASS  stage1  $v"; ((ready_s1++))
         else echo "$WARN  stage1  $v  NOT FOUND: $w1"; ((miss_s1++)); fi
 
-        local wd; wd=$(distill_weights "$v")
-        if [[ -f "$wd" ]]; then echo "$PASS  distill $v"; ((ready_d++))
+        if distill_weights_ready "$v"; then echo "$PASS  distill $v  (training complete)"; ((ready_d++))
+        elif [[ -f "$(distill_weights "$v")" ]]; then echo "$WARN  distill $v  weights exist but training still in progress"; ((miss_d++))
         else echo "$WARN  distill $v  not yet available — scheduler will wait"; ((miss_d++)); fi
     done
     echo "$IINF  stage1 : $ready_s1 ready, $miss_s1 missing"
@@ -466,11 +492,16 @@ cmd_dry_run() {
         for s in stage1 distill; do
             [[ "$STAGE" != "both" && "$STAGE" != "$s" ]] && continue
             local w; w=$(weights_for "$v" "$s")
-            local wst="missing"; [[ -f "$w" ]] && wst="ready"
+            local wst="missing"
+            if [[ "$s" == "distill" ]]; then
+                distill_weights_ready "$v" && wst="ready"
+            else
+                [[ -f "$w" ]] && wst="ready"
+            fi
             local action="will run"
             is_done   "$v" "$s" && action="already done (skip)"
             is_failed "$v" "$s" && action="previously failed (skip)"
-            [[ "$s" == "distill" && "$wst" == "missing" ]] && action="wait for distill finish"
+            [[ "$wst" == "missing" ]] && action="wait for weights"
             printf "  %-24s %-10s %-13s  %s\n" "${v}_${DEPTH}" "$s" "$wst" "$action"
         done
     done

@@ -642,3 +642,12 @@ yolo export model=runs/classify/train/tbcr/full/weights/best.pt format=onnx imgs
 | CoreML | `coreml` | iOS / macOS deployment |
 | OpenVINO | `openvino` | Intel CPU/GPU/VPU acceleration |
 | TensorRT | `engine` | NVIDIA GPU optimized inference |
+
+
+```bash
+
+# Check progress
+
+ssh -p 8822 enoch@ci2p 'cd /data2/enoch/ekd_coding_env/ultralytics && echo "=== Progress ===" && for v in full no_def no_freq no_patch no_cbam baseline; do f="runs/classify/train_tbcr_final/tbcr/${v}_small/distill_v2/results.csv"; if [ -f "$f" ]; then lines=$(wc -l < "$f"); last=$(tail -1 "$f" | cut -d, -f1); acc=$(tail -1 "$f" | cut -d, -f5); echo "$v: epoch=$last acc=$acc ($lines rows)"; else echo "$v: not started yet"; fi; done && echo "=== Scheduler ===" && kill -0 $(cat logs/tbcr_final_distill_v2/scheduler.pid 2>/dev/null) 2>/dev/null && echo "ALIVE" || echo "DEAD"'
+
+```

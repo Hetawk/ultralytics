@@ -52,7 +52,10 @@ OPTIMIZER="${OPTIMIZER:-AdamW}"
 WEIGHT_DECAY="${WEIGHT_DECAY:-0.0005}"
 WARMUP_EPOCHS="${WARMUP_EPOCHS:-1.0}"
 WARMUP_BIAS_LR="${WARMUP_BIAS_LR:-0.1}"
-PATIENCE="${PATIENCE:-20}"
+# Disable early stopping by default for stage-2 distillation. With PATIENCE=20
+# the trainer exits cleanly long before 100 epochs, and the scheduler used to
+# re-queue those runs, causing confusing epoch "restarts".
+PATIENCE="${PATIENCE:-0}"
 DROPOUT="${DROPOUT:-0.0}"
 ERASING="${ERASING:-0.2}"
 MIXUP="${MIXUP:-0.0}"
@@ -154,7 +157,35 @@ variant_has_checkpoint() {
 
 variant_progress_epoch() {
   local variant=$1
-  local results max_epoch
+  local last_pt results max_epoch ckpt_epoch
+  last_pt="$(last_pt_for_variant "$variant")"
+
+  if [[ -f "$last_pt" ]]; then
+    ckpt_epoch=$(python3 - "$last_pt" <<'PY'
+import sys
+from pathlib import Path
+
+try:
+    import torch
+except Exception:
+    print(-1)
+    raise SystemExit(0)
+
+pt = Path(sys.argv[1])
+try:
+    ckpt = torch.load(pt, map_location="cpu")
+    epoch = ckpt.get("epoch", -1)
+    print(int(epoch) if epoch is not None else -1)
+except Exception:
+    print(-1)
+PY
+)
+    if [[ "$ckpt_epoch" =~ ^-?[0-9]+$ ]] && [[ "$ckpt_epoch" -ge 0 ]]; then
+      echo "$ckpt_epoch"
+      return 0
+    fi
+  fi
+
   results="$(distill_dir_for_variant "$variant")/results.csv"
   [[ -f "$results" ]] || { echo -1; return 0; }
   max_epoch=$(awk -F',' 'NR > 1 && $1 ~ /^[0-9]+$/ { if ($1 > max) max = $1 } END { print (max == "" ? -1 : max) }' "$results" 2>/dev/null)
@@ -163,10 +194,10 @@ variant_progress_epoch() {
 
 variant_is_done() {
   local variant=$1
-  local best results max_epoch
+  local best last max_epoch
   best="$(best_pt_for_variant "$variant")"
-  results="$(distill_dir_for_variant "$variant")/results.csv"
-  [[ -f "$best" && -f "$results" ]] || return 1
+  last="$(last_pt_for_variant "$variant")"
+  [[ -f "$best" || -f "$last" ]] || return 1
   max_epoch=$(variant_progress_epoch "$variant")
   [[ "$max_epoch" =~ ^-?[0-9]+$ ]] || return 1
   [[ "$max_epoch" -ge $((EPOCHS - 1)) ]]
@@ -194,6 +225,9 @@ prune_queue_file() {
 }
 
 is_completed() { grep -qxF "$1" "$COMPLETED_FILE" 2>/dev/null; }
+unmark_completed() {
+  sed -i "/^$1$/d" "$COMPLETED_FILE" 2>/dev/null || true
+}
 mark_completed() {
   grep -qxF "$1" "$COMPLETED_FILE" 2>/dev/null || echo "$1" >> "$COMPLETED_FILE"
   sed -i "/^$1$/d" "$FAILED_FILE" 2>/dev/null || true
@@ -307,13 +341,14 @@ harvest() {
       if [[ "${_DRY_RUN:-0}" -eq 1 ]] || variant_is_done "$variant"; then
         log_ok "GPU $gpu: ✓ $variant distillation complete"
         mark_completed "$variant"
-      elif [[ -f "$(best_pt_for_variant "$variant")" ]]; then
-        # Process exited cleanly but hasn't reached EPOCHS yet (e.g. prior short run).
-        # Re-queue so the resume path finishes the remaining epochs.
-        log_info "GPU $gpu: $variant finished short run ($(wc -l < "$(distill_dir_for_variant "$variant")/results.csv" 2>/dev/null || echo '?') epochs < $EPOCHS), re-queuing for resume"
+      elif [[ -f "$(last_pt_for_variant "$variant")" || -f "$(best_pt_for_variant "$variant")" ]]; then
+        local progress_epoch
+        progress_epoch=$(variant_progress_epoch "$variant")
+        unmark_completed "$variant"
+        log_info "GPU $gpu: $variant exited cleanly at epoch $((progress_epoch + 1))/$EPOCHS; re-queuing to continue toward the target"
         enqueue_unique "$variant"
       else
-        log_warn "GPU $gpu: $variant exited 0 but no distilled best.pt found"
+        log_warn "GPU $gpu: $variant exited 0 but no distilled checkpoint found"
         mark_failed "$variant"
       fi
     else
@@ -333,6 +368,7 @@ queue_remaining() {
       mark_completed "$variant"
       continue
     fi
+    unmark_completed "$variant"
     if variant_is_running "$variant"; then
       continue
     fi

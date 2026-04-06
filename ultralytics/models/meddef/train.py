@@ -89,12 +89,18 @@ class MedDefTrainer(DistillationMixin, BaseTrainer):
         # checkpoint's saved args, which includes the original epoch count (e.g. 20).
         # Capture the user's desired epochs *before* super().__init__() so we can
         # restore a higher value afterwards (e.g. extending a 20-epoch run to 100).
+        # Same for patience — the checkpoint may have patience=20 from stage-1 but
+        # the caller passes patience=0 to disable early stopping for distillation.
         _desired_epochs = overrides.get("epochs")
+        _desired_patience = overrides.get("patience")
         super().__init__(cfg, overrides, _callbacks)
         # Restore user's higher epoch count if a resume capped it from the checkpoint.
         if _desired_epochs is not None and self.epochs < _desired_epochs:
             self.args.epochs = _desired_epochs
             self.epochs = _desired_epochs
+        # Restore user's patience if the checkpoint's saved args overwrote it.
+        if _desired_patience is not None:
+            self.args.patience = _desired_patience
         # Belt-and-suspenders: also clear self.amp after init.
         self.amp = False
         self._teacher = None  # initialised by DistillationMixin._setup_train
@@ -154,9 +160,11 @@ class MedDefTrainer(DistillationMixin, BaseTrainer):
             return
 
         model = str(self.model)
+        ckpt = None  # preserve checkpoint dict for resume_training()
+
         # Load a YOLO model locally, from torchvision, or from HUB
         if model.endswith(".pt"):
-            self.model, _ = attempt_load_one_weight(model, device="cpu")
+            self.model, ckpt = attempt_load_one_weight(model, device="cpu")
             for p in self.model.parameters():
                 p.requires_grad = True  # for training
         elif model.endswith(".yaml"):
@@ -166,26 +174,30 @@ class MedDefTrainer(DistillationMixin, BaseTrainer):
         else:
             raise FileNotFoundError(f"ERROR ❌ Model file {model} not found")
 
-        pretrained = self.args.pretrained
-        # Only load weights when pretrained is an actual path/weights object.
-        # A bare bool (True) just means "accept pretrained init" — MedDef2 YAML
-        # builds have no external checkpoint to load, so skip it in that case.
-        if pretrained and not isinstance(pretrained, bool):
-            # MedDefModel.load() expects an nn.Module or weights dict, not a raw
-            # string path.  When given a .pt path, load the checkpoint first.
-            # Ultralytics saves the best model under 'ema'; 'model' key may be None.
-            if isinstance(pretrained, str) and pretrained.endswith(".pt"):
-                ckpt = torch.load(pretrained, map_location="cpu")
-                if isinstance(ckpt, dict):
-                    weights = ckpt.get("ema") or ckpt.get("model") or ckpt
+        # When resuming, the model was already loaded from last.pt above with the
+        # correct trained weights + optimizer state in `ckpt`.  Do NOT overwrite
+        # with pretrained (teacher) weights — that would erase all training progress.
+        if not self.resume:
+            pretrained = self.args.pretrained
+            # Only load weights when pretrained is an actual path/weights object.
+            # A bare bool (True) just means "accept pretrained init" — MedDef2 YAML
+            # builds have no external checkpoint to load, so skip it in that case.
+            if pretrained and not isinstance(pretrained, bool):
+                # MedDefModel.load() expects an nn.Module or weights dict, not a raw
+                # string path.  When given a .pt path, load the checkpoint first.
+                # Ultralytics saves the best model under 'ema'; 'model' key may be None.
+                if isinstance(pretrained, str) and pretrained.endswith(".pt"):
+                    pt_ckpt = torch.load(pretrained, map_location="cpu")
+                    if isinstance(pt_ckpt, dict):
+                        weights = pt_ckpt.get("ema") or pt_ckpt.get("model") or pt_ckpt
+                    else:
+                        weights = pt_ckpt
+                    if weights is not None:
+                        self.model.load(weights)
                 else:
-                    weights = ckpt
-                if weights is not None:
-                    self.model.load(weights)
-            else:
-                self.model.load(pretrained)
+                    self.model.load(pretrained)
 
-        return self.model.ckpt if hasattr(self.model, "ckpt") else None
+        return ckpt
 
     def build_dataset(self, img_path: str, mode: str = "train", batch=None):
         """Create a ClassificationDataset instance.
