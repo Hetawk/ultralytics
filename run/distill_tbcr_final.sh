@@ -172,6 +172,27 @@ variant_is_done() {
   [[ "$max_epoch" -ge $((EPOCHS - 1)) ]]
 }
 
+variant_is_running() {
+  local variant=$1
+  pgrep -af "python train_meddef.py .*--variant ${variant}( |$).*--name ${DISTILL_NAME}( |$)" >/dev/null 2>&1
+}
+
+queue_contains() {
+  grep -qxF "$1" "$QUEUE_FILE" 2>/dev/null
+}
+
+enqueue_unique() {
+  local variant=$1
+  variant_is_done "$variant" && return 0
+  queue_contains "$variant" && return 0
+  echo "$variant" >> "$QUEUE_FILE"
+}
+
+prune_queue_file() {
+  [[ -f "$QUEUE_FILE" ]] || return 0
+  awk 'NF && !seen[$0]++' "$QUEUE_FILE" > "$QUEUE_FILE.tmp" 2>/dev/null && mv "$QUEUE_FILE.tmp" "$QUEUE_FILE"
+}
+
 is_completed() { grep -qxF "$1" "$COMPLETED_FILE" 2>/dev/null; }
 mark_completed() {
   grep -qxF "$1" "$COMPLETED_FILE" 2>/dev/null || echo "$1" >> "$COMPLETED_FILE"
@@ -290,7 +311,7 @@ harvest() {
         # Process exited cleanly but hasn't reached EPOCHS yet (e.g. prior short run).
         # Re-queue so the resume path finishes the remaining epochs.
         log_info "GPU $gpu: $variant finished short run ($(wc -l < "$(distill_dir_for_variant "$variant")/results.csv" 2>/dev/null || echo '?') epochs < $EPOCHS), re-queuing for resume"
-        echo "$variant" >> "$QUEUE_FILE"
+        enqueue_unique "$variant"
       else
         log_warn "GPU $gpu: $variant exited 0 but no distilled best.pt found"
         mark_failed "$variant"
@@ -312,8 +333,12 @@ queue_remaining() {
       mark_completed "$variant"
       continue
     fi
-    echo "$variant" >> "$QUEUE_FILE"
+    if variant_is_running "$variant"; then
+      continue
+    fi
+    enqueue_unique "$variant"
   done
+  prune_queue_file
 }
 
 show_status() {
@@ -369,10 +394,10 @@ stop_scheduler() {
 
 # Modes
 case "${1:-}" in
-  --status) show_status; exit 0 ;;
-  --watch) watch_status; exit 0 ;;
-  --stop) stop_scheduler; exit 0 ;;
-  --dry-run) _DRY_RUN=1 ;;
+  --status|status) show_status; exit 0 ;;
+  --watch|watch) watch_status; exit 0 ;;
+  --stop|stop) stop_scheduler; exit 0 ;;
+  --dry-run|dry-run) _DRY_RUN=1 ;;
 esac
 
 # Self-daemonize unless already in background or dry-run.
@@ -406,15 +431,30 @@ while true; do
   fi
 
   if [[ -s "$QUEUE_FILE" ]]; then
+    prune_queue_file
     IFS=',' read -ra GPU_ARR <<< "$GPU_IDS"
     for gpu in "${GPU_ARR[@]}"; do
       [[ -n "${GPU_PIDS[$gpu]:-}" ]] && kill -0 "${GPU_PIDS[$gpu]}" 2>/dev/null && continue
       is_gpu_free "$gpu" || continue
       acquire_lock "$gpu" || continue
 
-      next_variant=$(head -1 "$QUEUE_FILE" 2>/dev/null || true)
+      next_variant=""
+      while [[ -s "$QUEUE_FILE" ]]; do
+        local_candidate=$(head -1 "$QUEUE_FILE" 2>/dev/null || true)
+        sed -i '1d' "$QUEUE_FILE" 2>/dev/null || true
+        [[ -n "$local_candidate" ]] || continue
+        if variant_is_done "$local_candidate"; then
+          mark_completed "$local_candidate"
+          continue
+        fi
+        if variant_is_running "$local_candidate"; then
+          continue
+        fi
+        next_variant="$local_candidate"
+        break
+      done
+
       [[ -n "$next_variant" ]] || { release_lock "$gpu"; continue; }
-      sed -i '1d' "$QUEUE_FILE" 2>/dev/null || true
       launch_variant "$next_variant" "$gpu"
     done
   fi
