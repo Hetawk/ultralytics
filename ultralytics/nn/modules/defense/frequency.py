@@ -52,6 +52,11 @@ class FrequencyDefense(nn.Module):
         Returns:
             torch.Tensor: Filtered tensor of the same shape
         """
+        # ONNX tracing cannot handle torch.fft ops — pass through during export.
+        # Defence is still active for PyTorch (.pt) inference and training.
+        if torch.onnx.is_in_onnx_export():
+            return x
+
         # Handle sequence format [B, N, D] from transformers
         if x.ndim == 3:
             B, N, D = x.shape

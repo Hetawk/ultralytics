@@ -117,6 +117,11 @@ class DefenseModule(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass with multi-scale defense."""
+        # Bypass during ONNX export — AdaptiveAvgPool2d with non-factor output
+        # sizes (4×4, 8×8 on 14×14 feature maps) is unsupported in ONNX.
+        if torch.onnx.is_in_onnx_export():
+            return x
+
         # Get multi-scale features
         ms_features = self.multi_scale(x)
         

@@ -47,6 +47,11 @@ class PatchConsistency(nn.Module):
         Returns:
             torch.Tensor: Smoothed tensor of the same shape
         """
+        # ONNX tracing cannot handle data-dependent control flow — pass through.
+        # Defence is still active for PyTorch (.pt) inference and training.
+        if torch.onnx.is_in_onnx_export():
+            return x
+
         B, N, D = x.shape
         grid_h, grid_w = self.grid_size
         
