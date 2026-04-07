@@ -70,9 +70,11 @@ DEPTH="${DEPTH:-small}"
 
 # Minimum number of distillation jobs that must still be actively running
 # before an eval job is allowed to launch.  Set to 0 to disable the guard.
-# This allows eval to share GPUs 2/3 with light distillation jobs while
-# ensuring distillation always has GPUs to work with.
-MIN_ACTIVE_DISTILL="${MIN_ACTIVE_DISTILL:-3}"
+# We rely on MIN_MEMORY_MB (13 GB) to prevent eval from grabbing a GPU that
+# has an active distillation job — distill uses ~9 GB so only ~6 GB free,
+# well under the 13 GB threshold.  distill_weights_ready() ensures we only
+# evaluate variants whose training actually reached DISTILL_EPOCHS.
+MIN_ACTIVE_DISTILL="${MIN_ACTIVE_DISTILL:-0}"
 
 # After a job crashes (especially CUDA OOM), the GPU retains residual memory
 # for a short time.  This cooldown prevents the next job from dispatching to
@@ -95,8 +97,9 @@ ATTACKS="${ATTACKS:-fgsm pgd bim mim cw deepfool apgd square}"
 # Epsilon sweep values for ALL attacks
 EPSILONS="${EPSILONS:-0.0 0.005 0.01 0.02 0.03 0.05 0.1 0.15 0.2 0.3}"
 
-# Eval settings
-BATCH="${BATCH:-64}"
+# Eval settings — batch=32 to avoid OOM on adversarial attacks (T4 15GB)
+# Attacks store gradients which ~3-4x memory vs inference; batch=64 OOMs.
+BATCH="${BATCH:-32}"
 IMGSZ="${IMGSZ:-224}"
 WORKERS="${WORKERS:-4}"
 N_SALIENCY="${N_SALIENCY:-8}"
