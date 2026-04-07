@@ -645,9 +645,31 @@ yolo export model=runs/classify/train/tbcr/full/weights/best.pt format=onnx imgs
 
 
 ```bash
+# ── SSH addresses (use whichever matches your current network) ────────────────
+# On-campus / VPN:   ssh -p 8822 enoch@ci2p
+# Direct LAN:        ssh -p 22 enoch@192.168.252.237
 
-# Check progress
+# Check distillation progress
+ssh -p 8822 enoch@ci2p       'cd /data2/enoch/ekd_coding_env/ultralytics && echo "=== Progress ===" && for v in full no_def no_freq no_patch no_cbam baseline; do f="runs/classify/train_tbcr_final/tbcr/${v}_small/distill_v2/results.csv"; if [ -f "$f" ]; then lines=$(wc -l < "$f"); last=$(tail -1 "$f" | cut -d, -f1); acc=$(tail -1 "$f" | cut -d, -f5); echo "$v: epoch=$last acc=$acc ($lines rows)"; else echo "$v: not started yet"; fi; done && echo "=== Scheduler ===" && kill -0 $(cat logs/tbcr_final_distill_v2/scheduler.pid 2>/dev/null) 2>/dev/null && echo "ALIVE" || echo "DEAD"'
+ssh -p 22 enoch@192.168.252.237 'cd /data2/enoch/ekd_coding_env/ultralytics && echo "=== Progress ===" && for v in full no_def no_freq no_patch no_cbam baseline; do f="runs/classify/train_tbcr_final/tbcr/${v}_small/distill_v2/results.csv"; if [ -f "$f" ]; then lines=$(wc -l < "$f"); last=$(tail -1 "$f" | cut -d, -f1); acc=$(tail -1 "$f" | cut -d, -f5); echo "$v: epoch=$last acc=$acc ($lines rows)"; else echo "$v: not started yet"; fi; done && echo "=== Scheduler ===" && kill -0 $(cat logs/tbcr_final_distill_v2/scheduler.pid 2>/dev/null) 2>/dev/null && echo "ALIVE" || echo "DEAD"'
 
-ssh -p 8822 enoch@ci2p 'cd /data2/enoch/ekd_coding_env/ultralytics && echo "=== Progress ===" && for v in full no_def no_freq no_patch no_cbam baseline; do f="runs/classify/train_tbcr_final/tbcr/${v}_small/distill_v2/results.csv"; if [ -f "$f" ]; then lines=$(wc -l < "$f"); last=$(tail -1 "$f" | cut -d, -f1); acc=$(tail -1 "$f" | cut -d, -f5); echo "$v: epoch=$last acc=$acc ($lines rows)"; else echo "$v: not started yet"; fi; done && echo "=== Scheduler ===" && kill -0 $(cat logs/tbcr_final_distill_v2/scheduler.pid 2>/dev/null) 2>/dev/null && echo "ALIVE" || echo "DEAD"'
+# Full distillation status (reads last.pt epoch)
+ssh -p 8822 enoch@ci2p         'cd /data2/enoch/ekd_coding_env/ultralytics && bash run/distill_tbcr_final.sh --status'
+ssh -p 22 enoch@192.168.252.237 'cd /data2/enoch/ekd_coding_env/ultralytics && bash run/distill_tbcr_final.sh --status'
 
+# Start evaluation scheduler (auto-picks up completed distill variants as GPUs free up)
+ssh -p 8822 enoch@ci2p         'cd /data2/enoch/ekd_coding_env/ultralytics && STAGE=distill bash run/eval_tbcr_final.sh'
+ssh -p 22 enoch@192.168.252.237 'cd /data2/enoch/ekd_coding_env/ultralytics && STAGE=distill bash run/eval_tbcr_final.sh'
+
+# Check eval status
+ssh -p 8822 enoch@ci2p         'cd /data2/enoch/ekd_coding_env/ultralytics && STAGE=distill bash run/eval_tbcr_final.sh --status'
+ssh -p 22 enoch@192.168.252.237 'cd /data2/enoch/ekd_coding_env/ultralytics && STAGE=distill bash run/eval_tbcr_final.sh --status'
+
+# Watch eval live
+ssh -p 8822 enoch@ci2p         'cd /data2/enoch/ekd_coding_env/ultralytics && STAGE=distill bash run/eval_tbcr_final.sh --watch'
+ssh -p 22 enoch@192.168.252.237 'cd /data2/enoch/ekd_coding_env/ultralytics && STAGE=distill bash run/eval_tbcr_final.sh --watch'
+
+# Eval dry-run (check prerequisites without launching)
+ssh -p 8822 enoch@ci2p         'cd /data2/enoch/ekd_coding_env/ultralytics && STAGE=distill bash run/eval_tbcr_final.sh --dry-run'
+ssh -p 22 enoch@192.168.252.237 'cd /data2/enoch/ekd_coding_env/ultralytics && STAGE=distill bash run/eval_tbcr_final.sh --dry-run'
 ```
