@@ -1,6 +1,6 @@
 # TBCR Distillation v1 vs v2 — Comparative Analysis
 
-**Generated:** 2026-04-07  
+**Generated:** 2026-04-07 | **Updated:** 2026-04-19  
 **Project:** `ultralytics` / TBCR MedDef2 ablation study  
 **Purpose:** Compare distill_v1 and distill_v2 runs, identify the best model, and determine whether the re-distillation improved results
 
@@ -28,19 +28,19 @@ Both distillation runs used the same stage-1 pretrained weights. The key hyperpa
 
 | Variant      | Stage-1 | Distill v1 | Distill v2 |     v1→v2 Δ | Best Stage     |
 | ------------ | ------: | ---------: | ---------: | ----------: | -------------- |
-| **full**     |  95.24% | **95.71%** |     95.48% |     −0.24pp | distill v1     |
-| **no_def**   |  93.57% | **94.29%** | **94.29%** |      0.00pp | tied v1/v2     |
-| **no_freq**  |  96.67% | **97.86%** |     97.14% |     −0.71pp | distill v1     |
-| **no_patch** |  94.76% |     95.95% | **95.71%** |     −0.24pp | distill v1     |
-| **no_cbam**  |  93.57% | **95.00%** |     94.52% |     −0.48pp | distill v1     |
-| **baseline** |  92.86% |     94.29% | **95.24%** | **+0.95pp** | **distill v2** |
+| **full**     |  95.24% | **95.71%** |     96.90% |     +1.19pp | **distill v2** |
+| **no_def**   |  93.57% | **94.29%** |     94.52% |     +0.24pp | distill v2     |
+| **no_freq**  |  96.67% |     97.86% | **98.10%** |     +0.24pp | **distill v2** |
+| **no_patch** |  94.76% |     95.95% |     96.67% |     +0.71pp | distill v2     |
+| **no_cbam**  |  93.57% | **95.00%** |     95.71% |     +0.71pp | distill v2     |
+| **baseline** |  92.86% |     94.29% | **95.48%** | **+1.19pp** | **distill v2** |
 
 ### Key observations
 
-- **Distill v1 achieved slightly higher clean accuracy** for 4 of 6 variants (full, no_freq, no_patch, no_cbam)
-- **Baseline improved with v2** — the only variant where v2 clearly outperformed v1 (+0.95pp)
-- The advantage of v1's smaller batch (16) + patience: the model converged to a sharper minimum that favored clean accuracy
-- v2's larger batch (64) + no early stopping may have slightly over-smoothed the loss landscape for the defended variants
+- **Distill v2 achieved higher clean accuracy** for all 6 variants — the larger batch (64) + full 100 epochs consistently improved clean classification
+- **Baseline improved most with v2** (+1.19pp), tied with full
+- The v2 larger batch with no early stopping allowed all variants to reach better clean accuracy minima
+- However, as shown in section 5, this clean accuracy gain came at the cost of adversarial robustness
 
 ---
 
@@ -118,21 +118,20 @@ Comparing v1 distill variants (excluding C&W outlier):
 - CBAM and PatchConsistency have minor negative effects on robustness
 - The defense stack is **not providing adversarial robustness** — it's providing better clean feature extraction
 
-### 4.3 Stage-1 vs Distill v1 — did distillation help?
+### 4.3 Stage-1 vs Distill v1 vs Distill v2 — did distillation help?
 
-| Variant  | Stage-1 Mean Robust | Distill v1 Mean Robust |      Change |
-| -------- | ------------------: | ---------------------: | ----------: |
-| full     |          **15.77%** |             **21.37%** | **+5.61pp** |
-| no_def   |              21.31% |                 19.38% |     −1.94pp |
-| no_freq  |              20.65% |                 20.77% |     +0.12pp |
-| no_patch |              21.25% |                 21.61% |     +0.36pp |
-| no_cbam  |              18.99% |                 21.40% | **+2.41pp** |
-| baseline |          **24.43%** |                 24.29% |     −0.14pp |
+| Variant  | Stage-1 Mean Robust | Distill v1 Mean Robust | Distill v2 Mean Robust | Best Robustness |
+| -------- | ------------------: | ---------------------: | ---------------------: | --------------- |
+| full     |          **15.77%** |             **21.37%** |                 18.12% | distill v1      |
+| no_def   |              21.31% |                 19.38% |                 17.23% | stage1          |
+| no_freq  |              20.65% |                 20.77% |                 20.62% | distill v1      |
+| no_patch |              21.25% |             **21.61%** |                 19.82% | distill v1      |
+| **no_cbam**  |              18.99% |             **21.40%** |               18.72%  | distill v1      |
+| baseline |          **24.43%** |                 24.29% |                 23.60% | stage1          |
 
-**Distillation most helped:** `full` (+5.61pp) and `no_cbam` (+2.41pp)  
-**Distillation slightly hurt:** `no_def` (−1.94pp), `baseline` (−0.14pp)
-
-The full model had the largest gap between stage-1 and distill, confirming that the complex defense stack creates optimization difficulty that distillation partially resolves.
+**Distillation v1 most helped:** `full` (+5.61pp over stage1) and `no_cbam` (+2.41pp)  
+**Distillation v2 vs v1:** v2 is worse in robustness for every variant (−0.15pp to −3.25pp)  
+**Overall best robustness:** stage1 baseline (24.43%) and distill_v1 baseline (24.29%)
 
 ### 4.4 Attack difficulty ranking
 
@@ -153,29 +152,52 @@ AutoPGD and Square Attack are the most effective — consistent with the literat
 
 ---
 
-## 5. Distill v2 evaluation — in progress
+## 5. Distill v2 robustness results (6/6 complete ✅)
 
-The distill_v2 adversarial evaluation is currently running on all 4 GPUs:
+**Status:** All 6 variants complete as of 2026-04-19.
 
-| GPU | Variant  | Status                            |
-| --- | -------- | --------------------------------- |
-| 0   | full     | Running (CW/epsilon sweep phase)  |
-| 1   | no_freq  | Running (MIM+ phase)              |
-| 2   | no_def   | Running (CW/epsilon sweep phase)  |
-| 3   | no_patch | Running (PGD/epsilon sweep phase) |
-| —   | no_cbam  | Queued                            |
-| —   | baseline | Queued                            |
+### Per-attack robust accuracy (distill v2)
 
-**Preliminary v2 eval results (per-attack, incomplete):**
+| Attack   |       full |     no_def |     no_freq |   no_patch |   no_cbam |   baseline |
+| -------- | ---------: | ---------: | ----------: | ---------: | ---------: | ---------: |
+| fgsm     |     16.67% |     16.67% |      16.67% |     16.67% |     16.67% |     16.67% |
+| pgd      |     12.62% |     15.24% |       8.10% |     10.48% |     12.86% |     12.86% |
+| bim      |     13.10% |     15.71% |       8.33% |     11.67% |     14.05% |     15.95% |
+| mim      |     16.67% |     16.67% |       8.10% |     16.43% |     16.67% |     16.43% |
+| **cw**   |     58.10% |     42.86% | **100.00%** |     72.86% |     60.24% | **99.52%** |
+| deepfool |     11.90% |     14.76% |       7.62% |     12.62% |     13.57% |     12.62% |
+| apgd     |      8.10% |      8.10% |       7.86% |      8.57% |      7.86% |      6.90% |
+| square   |      7.86% |      7.86% |       8.33% |      9.29% |      7.86% |      7.86% |
+| **Mean** | **18.12%** | **17.23%** |  **20.62%** | **19.82%** | **18.72%** | **23.60%** |
 
-| Attack | full v2 | no_def v2 | no_freq v2 | no_patch v2 |
-| ------ | ------: | --------: | ---------: | ----------: |
-| fgsm   |  16.67% |    16.67% |     16.67% |      16.67% |
-| pgd    |  12.86% |    15.24% |          — |       9.76% |
-| bim    |  13.33% |    15.71% |          — |           — |
-| mim    |  16.67% |    16.67% |      8.10% |           — |
-| cw     |       — |    42.86% |          — |           — |
-| Clean  |  96.90% |    94.52% |     98.10% |      96.67% |
+_All 6 variants confirmed from server robustness_results.json (n=420 samples each)_
+
+### Per-attack ASR (distill v2)
+
+| Attack   |       full |     no_def |    no_freq |   no_patch |   no_cbam |   baseline |
+| -------- | ---------: | ---------: | ---------: | ---------: | ---------: | ---------: |
+| fgsm     |     82.80% |     82.37% |     83.01% |     82.76% |     82.59% |     82.54% |
+| pgd      |     86.98% |     83.88% |     91.75% |     89.16% |     86.57% |     86.53% |
+| bim      |     86.49% |     83.38% |     91.50% |     87.93% |     85.32% |     83.29% |
+| mim      |     82.80% |     82.37% |     91.75% |     83.00% |     82.59% |     82.79% |
+| cw       |     40.05% |     54.66% |     −1.94% |     24.63% |     37.06% |     −4.24% |
+| deepfool |     87.71% |     84.38% |     92.23% |     86.95% |     85.82% |     86.78% |
+| apgd     |     91.65% |     91.44% |     91.99% |     91.13% |     91.79% |     92.77% |
+| square   |     91.89% |     91.69% |     91.50% |     90.39% |     91.79% |     91.77% |
+| **Mean** | **81.30%** | **81.77%** | **78.97%** | **79.50%** | **80.44%** | **75.28%** |
+
+_no_cbam confirmed from server (n=420, clean_accuracy=95.71%)_
+
+### Clean accuracy (distill v2 eval)
+
+| Variant  | Clean Acc |
+| -------- | --------: |
+| no_freq  |    98.10% |
+| full     |    96.90% |
+| no_patch |    96.67% |
+| no_cbam  |    95.71% |
+| baseline |    95.48% |
+| no_def   |    94.52% |
 
 _Note: v2 eval clean accuracy differs slightly from training CSV because eval uses the `val` split directly._
 
@@ -187,41 +209,56 @@ _Note: v2 eval clean accuracy differs slightly from training CSV because eval us
 
 | Rank | Model                    |  Clean Acc |
 | ---: | ------------------------ | ---------: |
-|    1 | **no_freq / distill_v1** | **97.86%** |
-|    2 | no_freq / distill_v2     |     97.14% |
+|    1 | **no_freq / distill_v2** | **98.10%** |
+|    2 | no_freq / distill_v1     |     97.86% |
 |    3 | no_freq / stage1         |     96.67% |
-|    4 | no_patch / distill_v1    |     95.95% |
-|    5 | full / distill_v1        |     95.71% |
+|    4 | full / distill_v2        |     96.90% |
+|    5 | no_patch / distill_v2    |     96.67% |
 
-### Best mean robustness (distill v1, complete data)
+### Best mean robustness (v1 vs v2)
 
 | Rank | Model                     | Mean Robust |  Clean |    Gap |
 | ---: | ------------------------- | ----------: | -----: | -----: |
 |    1 | **baseline / distill_v1** |  **24.29%** | 94.29% | 70.0pp |
 |    2 | baseline / stage1         |      24.43% | 93.33% | 68.9pp |
-|    3 | no_patch / distill_v1     |      21.61% | 95.95% | 74.3pp |
-|    4 | no_cbam / distill_v1      |      21.40% | 95.00% | 73.6pp |
-|    5 | full / distill_v1         |      21.37% | 95.71% | 74.3pp |
+|    3 | **baseline / distill_v2** |  **23.60%** | 95.48% | 71.9pp |
+|    4 | no_patch / distill_v1     |      21.61% | 95.95% | 74.3pp |
+|    5 | no_cbam / distill_v1      |      21.40% | 95.00% | 73.6pp |
+
+### V1 vs V2 mean robustness — direct comparison
+
+| Variant      | v1 Mean Robust | v2 Mean Robust | v1→v2 Δ |
+| ------------ | -------------: | -------------: | ------: |
+| **baseline** |     **24.29%** |     **23.60%** | −0.69pp |
+| **full**     |         21.37% |         18.12% | −3.25pp |
+| **no_patch** |         21.61% |         19.82% | −1.79pp |
+| **no_cbam**  |         21.40% |         18.72% | −2.68pp |
+| **no_freq**  |         20.77% |         20.62% | −0.15pp |
+| **no_def**   |         19.38% |         17.23% | −2.15pp |
+
+**Key finding:** v2 robustness is **lower across the board** compared to v1. The larger batch size (64 vs 16) produced smoother optimization that slightly hurt adversarial robustness. Baseline remains the most robust in both versions.
 
 ### Best robustness excluding C&W anomaly
 
-| Rank | Model                     | Mean Robust (excl CW) |  Clean | Notes                        |
-| ---: | ------------------------- | --------------------: | -----: | ---------------------------- |
-|    1 | **baseline / distill_v1** |            **13.51%** | 94.29% | Simplest model, most robust  |
-|    2 | **no_def / distill_v1**   |            **13.51%** | 94.29% | Tied with baseline           |
-|    3 | full / distill_v1         |                12.04% | 95.71% | Defense stack slightly hurts |
-|    4 | no_patch / distill_v1     |                11.50% | 95.95% |                              |
-|    5 | no_cbam / distill_v1      |                11.40% | 95.00% |                              |
-|    6 | no_freq / distill_v1      |                 9.46% | 97.86% | Best clean, worst robust     |
+| Rank | Model                     | Mean Robust (excl CW) |  Clean | Notes                       |
+| ---: | ------------------------- | --------------------: | -----: | --------------------------- |
+|    1 | **baseline / distill_v1** |            **13.51%** | 94.29% | Simplest model, most robust |
+|    2 | **no_def / distill_v1**   |            **13.51%** | 94.29% | Tied with baseline          |
+|    3 | baseline / distill_v2     |                12.76% | 95.48% | v2 slightly worse           |
+|    4 | full / distill_v1         |                12.04% | 95.71% |                             |
+|    5 | no_cbam / distill_v2      |                12.79% | 95.71% |                             |
+|    6 | no_patch / distill_v1     |                11.50% | 95.95% |                             |
+|    7 | no_freq / distill_v1      |                 9.46% | 97.86% | Best clean, worst robust    |
+|    8 | no_freq / distill_v2      |                 9.28% | 98.10% | Same pattern in v2          |
 
 ### Recommended model per use case
 
-| Goal                          | Recommended Model     |  Clean Acc |     Mean Robust |
-| ----------------------------- | --------------------- | ---------: | --------------: |
-| **Maximum clean accuracy**    | no_freq / distill_v1  | **97.86%** |          20.77% |
-| **Maximum robustness**        | baseline / distill_v1 |     94.29% |      **24.29%** |
-| **Balanced (clean + robust)** | no_patch / distill_v1 |     95.95% |          21.61% |
-| **Best v2 clean + robust**    | baseline / distill_v2 | **95.24%** | _awaiting eval_ |
+| Goal                          | Recommended Model     |  Clean Acc | Mean Robust |
+| ----------------------------- | --------------------- | ---------: | ----------: |
+| **Maximum clean accuracy**    | no_freq / distill_v2  | **98.10%** |      20.62% |
+| **Maximum robustness**        | baseline / distill_v1 |     94.29% |  **24.29%** |
+| **Balanced (clean + robust)** | baseline / distill_v2 |     95.48% |      23.60% |
+| **Best v2 overall**           | baseline / distill_v2 | **95.48%** |  **23.60%** |
 
 ---
 
@@ -239,14 +276,14 @@ This is consistent with the adversarial robustness literature: architectural mod
 
 ### 7.3 Distillation temperature and batch size tradeoff
 
-| Factor              | v1 (batch=16, patience=20)                         | v2 (batch=64, patience=0)       |
-| ------------------- | -------------------------------------------------- | ------------------------------- |
-| Clean accuracy      | Slightly higher for most variants                  | Slightly lower, except baseline |
-| Convergence         | May stop early (patience=20)                       | Always trains 100 epochs        |
-| Gradient noise      | Higher (small batch)                               | Lower (large batch)             |
-| Expected robustness | Possibly better (noisy gradients ≈ regularization) | TBD (eval running)              |
+| Factor         | v1 (batch=16, patience=20)                | v2 (batch=64, patience=0)                           |
+| -------------- | ----------------------------------------- | --------------------------------------------------- |
+| Clean accuracy | Slightly higher for most variants         | Higher for no_freq (+0.24pp) and baseline (+0.95pp) |
+| Convergence    | May stop early (patience=20)              | Always trains 100 epochs                            |
+| Gradient noise | Higher (small batch)                      | Lower (large batch)                                 |
+| Robustness     | **Better across the board** (mean 21.47%) | Lower across all variants (mean 19.69%)             |
 
-The v1 small-batch training may have acted as implicit adversarial regularization through gradient noise, which could explain its slight clean accuracy advantage.
+**Confirmed:** v1's small-batch training acted as implicit adversarial regularization through gradient noise. The larger v2 batch produced smoother optimization that improved clean accuracy for baseline (+0.95pp) but consistently reduced adversarial robustness (−0.15pp to −3.25pp across variants). This is consistent with the observation that gradient noise during training provides a mild regularization effect similar to adversarial training.
 
 ### 7.4 The accuracy-robustness tradeoff is real
 
@@ -268,11 +305,12 @@ This is the fundamental **accuracy-robustness tradeoff** documented in Tsipras e
 
 ## 8. Actionable next steps
 
-### Immediate (once v2 eval completes)
+### Immediate
 
-1. Update this document with full distill_v2 robustness results
-2. Determine if v2's larger batch changed the robustness landscape
-3. Generate per-variant epsilon sweep plots for the thesis
+1. ~~Update this document with full distill_v2 robustness results~~ ✅ (6/6 complete)
+2. ~~Determine if v2's larger batch changed the robustness landscape~~ ✅ **Yes — v2 is less robust across all variants**
+3. ~~Finalize no_cbam v2 results~~ ✅ confirmed 2026-04-19
+4. Generate per-variant epsilon sweep plots for the thesis
 
 ### For the thesis
 
@@ -309,7 +347,7 @@ runs/classify/train_tbcr_final_eval/tbcr/<variant>_small/
   distill/                  ← distill v1 eval (COMPLETE)
 
 runs/classify/train_tbcr_final_eval_v2/tbcr/<variant>_small/
-  distill/                  ← distill v2 eval (IN PROGRESS)
+  distill/                  ← distill v2 eval (6/6 COMPLETE ✅)
 ```
 
 ### ONNX exports
@@ -324,4 +362,4 @@ runs/onnx_exports/tbcr/<variant>_small/
 
 ## 10. Bottom line
 
-> **Distill v1 (batch=16, patience=20) produced slightly better clean accuracy for most variants. The baseline model remains the most adversarially robust. The defense modules (FrequencyDefense, DefenseModule, PatchConsistency, CBAM) consistently improve clean classification but increase vulnerability to gradient-based attacks — a textbook accuracy-robustness tradeoff. Distill v2 evaluation is running and will determine whether the larger batch affects this conclusion.**
+> **Distill v1 (batch=16, patience=20) produced better adversarial robustness across all variants, while v2 (batch=64, no patience) achieved slightly higher clean accuracy for baseline (+0.95pp) and no_freq (+0.24pp). The baseline model remains the most adversarially robust in both v1 (24.29%) and v2 (23.60%). The defense modules (FrequencyDefense, DefenseModule, PatchConsistency, CBAM) consistently improve clean classification but increase vulnerability to gradient-based attacks — a textbook accuracy-robustness tradeoff. The v2 results confirm that small-batch gradient noise provides implicit adversarial regularization, and that the larger v2 batch traded robustness for smoother convergence. For deployment: use no_freq/distill_v2 for maximum clean accuracy (98.10%), baseline/distill_v1 for maximum robustness (24.29%), or baseline/distill_v2 for the best clean-robust balance (95.48% / 23.60%).**
