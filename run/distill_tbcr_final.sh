@@ -428,6 +428,12 @@ stop_scheduler() {
   fi
 }
 
+scheduler_running() {
+  local spid
+  spid=$(cat "$PID_FILE" 2>/dev/null || true)
+  [[ -n "$spid" ]] && kill -0 "$spid" 2>/dev/null
+}
+
 # Modes
 case "${1:-}" in
   --status|status) show_status; exit 0 ;;
@@ -438,6 +444,11 @@ esac
 
 # Self-daemonize unless already in background or dry-run.
 if [[ "${MEDDEF_DISTILL_DAEMON:-0}" != "1" && "${_DRY_RUN:-0}" != "1" ]]; then
+  if scheduler_running; then
+    echo "[INFO] Distillation scheduler already running (PID $(cat "$PID_FILE"))."
+    echo "[INFO] Check status with: bash run/distill_tbcr_final.sh --status"
+    exit 0
+  fi
   echo "[INFO] Starting distillation scheduler in background..."
   nohup env MEDDEF_DISTILL_DAEMON=1 bash "$SCRIPT_PATH" "$@" >> "$LOG_BASE/nohup.out" 2>&1 &
   echo $! > "$PID_FILE"

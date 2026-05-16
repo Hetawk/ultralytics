@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  eval_tbcr_final.sh — TBCR post-training evaluation scheduler
+#  eval_chest_xray_final.sh — CHEST_XRAY post-training evaluation scheduler
 #
 #  Evaluates all 6 MedDef variants × 2 model stages (stage1 + distill).
 #  Runs continuously alongside distillation — picks up each distill job as
@@ -25,16 +25,16 @@
 #    fgsm   pgd   bim   mim   cw   deepfool   apgd   square
 #
 #  Usage:
-#    bash run/eval_tbcr_final.sh              # start scheduler (daemonises)
-#    bash run/eval_tbcr_final.sh --dry-run    # check prerequisites, show plan
-#    bash run/eval_tbcr_final.sh --status     # job table + GPU memory
-#    bash run/eval_tbcr_final.sh --watch      # live status + log tails
-#    bash run/eval_tbcr_final.sh --stop       # kill all eval jobs
-#    bash run/eval_tbcr_final.sh --reset      # wipe state, start over
-#    STAGE=stage1  bash run/eval_tbcr_final.sh   # stage-1 weights only
-#    STAGE=distill bash run/eval_tbcr_final.sh   # distill weights only
-#    VARIANTS="full baseline" bash run/eval_tbcr_final.sh
-#    GPU_IDS=2,3   bash run/eval_tbcr_final.sh
+#    bash run/eval_chest_xray_final.sh              # start scheduler (daemonises)
+#    bash run/eval_chest_xray_final.sh --dry-run    # check prerequisites, show plan
+#    bash run/eval_chest_xray_final.sh --status     # job table + GPU memory
+#    bash run/eval_chest_xray_final.sh --watch      # live status + log tails
+#    bash run/eval_chest_xray_final.sh --stop       # kill all eval jobs
+#    bash run/eval_chest_xray_final.sh --reset      # wipe state, start over
+#    STAGE=stage1  bash run/eval_chest_xray_final.sh   # stage-1 weights only
+#    STAGE=distill bash run/eval_chest_xray_final.sh   # distill weights only
+#    VARIANTS="full baseline" bash run/eval_chest_xray_final.sh
+#    GPU_IDS=2,3   bash run/eval_chest_xray_final.sh
 # =============================================================================
 
 set -uo pipefail
@@ -46,9 +46,9 @@ cd "$PROJECT_DIR"
 
 # ── Configuration (override via env) ─────────────────────────────────────────
 DATA_ROOT="${DATA_ROOT:-/data2/enoch/ekd_coding_env/meddef_winlab/processed_data}"
-TBCR_DATA="${TBCR_DATA:-${DATA_ROOT}/tbcr}"
-RUN_NAME="${RUN_NAME:-train_tbcr_final}"
-EVAL_NAME="${EVAL_NAME:-train_tbcr_final_eval_v2}"
+CHEST_XRAY_DATA="${CHEST_XRAY_DATA:-${DATA_ROOT}/chest_xray}"
+RUN_NAME="${RUN_NAME:-train_chest_xray_final}"
+EVAL_NAME="${EVAL_NAME:-train_chest_xray_final_eval_v2}"
 # Which subdirectory holds the distilled weights inside each variant folder.
 # v1 used "distill", v2 uses "distill_v2".  Override to re-evaluate any version.
 DISTILL_STAGE_NAME="${DISTILL_STAGE_NAME:-distill_v2}"
@@ -58,7 +58,7 @@ PYTHON="${PYTHON:-python}"
 # GPU pool — auto selects any GPU with enough free memory
 GPU_IDS="${GPU_IDS:-0,1,2,3}"
 # Require 13 GB free before claiming a GPU.
-# Distillation (TBCR small) uses ~4 GB baseline but spikes to near-full during
+# Distillation (CHEST_XRAY small) uses ~4 GB baseline but spikes to near-full during
 # backward passes — eval OOMs trying to allocate even 200 MB at that moment.
 # 13 GB threshold: too high for any GPU running distillation (~10.9 GB free),
 # but satisfied immediately once distillation finishes and the GPU has ~14.8 GB free.
@@ -86,7 +86,7 @@ GPU_COOLDOWN_SECS="${GPU_COOLDOWN_SECS:-90}"
 # How many times an OOM-failed job is automatically retried before giving up.
 MAX_RETRIES="${MAX_RETRIES:-3}"
 
-# How many epochs distillation is configured for (must match distill_tbcr_final.sh).
+# How many epochs distillation is configured for (must match distill_chest_xray_final.sh).
 # Used to verify training actually finished before evaluating the weights.
 DISTILL_EPOCHS="${DISTILL_EPOCHS:-100}"
 
@@ -108,10 +108,10 @@ N_SALIENCY="${N_SALIENCY:-8}"
 
 # ── Derived paths ─────────────────────────────────────────────────────────────
 # Log and distill-jobs dirs are versioned so v1 and v2 state never collide
-LOG_BASE="$PROJECT_DIR/logs/tbcr_final_eval_${DISTILL_STAGE_NAME}"
-DISTILL_JOBS_DIR="$PROJECT_DIR/logs/tbcr_final_${DISTILL_STAGE_NAME}/jobs"
-TRAIN_BASE="$PROJECT_DIR/runs/classify/${RUN_NAME}/tbcr"
-EVAL_BASE="$PROJECT_DIR/runs/classify/${EVAL_NAME}/tbcr"
+LOG_BASE="$PROJECT_DIR/logs/chest_xray_final_eval_${DISTILL_STAGE_NAME}"
+DISTILL_JOBS_DIR="$PROJECT_DIR/logs/chest_xray_final_${DISTILL_STAGE_NAME}/jobs"
+TRAIN_BASE="$PROJECT_DIR/runs/classify/${RUN_NAME}/chest_xray"
+EVAL_BASE="$PROJECT_DIR/runs/classify/${EVAL_NAME}/chest_xray"
 STATE_DIR="$LOG_BASE/state"
 PID_FILE="$LOG_BASE/scheduler.pid"
 MASTER_LOG="$LOG_BASE/master.log"
@@ -195,7 +195,7 @@ is_gpu_cooled_down() {
 }
 
 # Count distillation jobs that are currently alive (by checking PID files
-# written by distill_tbcr_final.sh in logs/tbcr_final_distill/jobs/).
+# written by distill_chest_xray_final.sh in logs/chest_xray_final_distill/jobs/).
 count_active_distill() {
     local count=0
     if [[ -d "$DISTILL_JOBS_DIR" ]]; then
@@ -312,7 +312,7 @@ launch_eval() {
         CUDA_VISIBLE_DEVICES="$gpu" CUDA_DEVICE_ORDER=PCI_BUS_ID \
         $PYTHON evaluate.py \
             --model      "$weights" \
-            --data       "$TBCR_DATA" \
+            --data       "$CHEST_XRAY_DATA" \
             --split      val \
             --batch      "$BATCH" \
             --imgsz      "$IMGSZ" \
@@ -438,17 +438,17 @@ cmd_dry_run() {
     # 4. Data directory
     echo ""
     echo "── Dataset ──────────────────────────────────────────────────────"
-    if [[ -d "$TBCR_DATA" ]]; then
-        echo "$PASS  TBCR data dir: $TBCR_DATA"
+    if [[ -d "$CHEST_XRAY_DATA" ]]; then
+        echo "$PASS  CHEST_XRAY data dir: $CHEST_XRAY_DATA"
         for split in val test train; do
-            if [[ -d "$TBCR_DATA/$split" ]]; then
-                local n_cls; n_cls=$(find "$TBCR_DATA/$split" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
+            if [[ -d "$CHEST_XRAY_DATA/$split" ]]; then
+                local n_cls; n_cls=$(find "$CHEST_XRAY_DATA/$split" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
                 echo "$IINF    $split/  — $n_cls class folders"
                 break
             fi
         done
     else
-        echo "$FAIL  TBCR data NOT found: $TBCR_DATA"; pass=0
+        echo "$FAIL  CHEST_XRAY data NOT found: $CHEST_XRAY_DATA"; pass=0
     fi
 
     # 5. GPUs
@@ -550,7 +550,7 @@ cmd_dry_run() {
         echo "  RESULT: All hard prerequisites satisfied ✓"
         echo ""
         echo "  Safe to start:"
-        echo "    bash run/eval_tbcr_final.sh"
+        echo "    bash run/eval_chest_xray_final.sh"
         echo ""
         echo "  Scheduler will:"
         echo "    • run stage-1 evals immediately on any free GPU"
@@ -569,7 +569,7 @@ cmd_dry_run() {
 cmd_status() {
     mkdir -p "$STATE_DIR"
     echo "╔══════════════════════════════════════════════════════════════╗"
-    echo "║           TBCR Final Evaluation — Status                    ║"
+    echo "║           CHEST_XRAY Final Evaluation — Status                    ║"
     echo "╚══════════════════════════════════════════════════════════════╝"
     printf "  %-24s %-10s %-32s\n" "VARIANT" "STAGE" "STATUS"
     printf "  %-24s %-10s %-32s\n" "-------" "-----" "------"
@@ -661,7 +661,7 @@ cmd_run() {
     echo $$ > "$PID_FILE"
 
     info "════════════════════════════════════════════════════"
-    info " TBCR Final Evaluation Scheduler"
+    info " CHEST_XRAY Final Evaluation Scheduler"
     info " Variants : $VARIANTS"
     info " Stage    : $STAGE  |  Depth: $DEPTH"
     info " Attacks  : $ATTACKS"
@@ -762,7 +762,7 @@ cmd_run() {
 if [[ "${MEDDEF_EVAL_DAEMON:-0}" != "1" && "${1:-}" == "" ]]; then
     if scheduler_running; then
         echo "[INFO] Evaluation scheduler already running (PID $(cat "$PID_FILE"))."
-        echo "[INFO] Status: bash run/eval_tbcr_final.sh --status"
+        echo "[INFO] Status: bash run/eval_chest_xray_final.sh --status"
         exit 0
     fi
     mkdir -p "$LOG_BASE"
@@ -771,8 +771,8 @@ if [[ "${MEDDEF_EVAL_DAEMON:-0}" != "1" && "${1:-}" == "" ]]; then
     BGPID=$!
     echo "[INFO] Scheduler PID : $BGPID"
     echo "[INFO] nohup log     : $LOG_BASE/nohup.out"
-    echo "[INFO] Status        : bash run/eval_tbcr_final.sh --status"
-    echo "[INFO] Watch         : bash run/eval_tbcr_final.sh --watch"
+    echo "[INFO] Status        : bash run/eval_chest_xray_final.sh --status"
+    echo "[INFO] Watch         : bash run/eval_chest_xray_final.sh --watch"
     exit 0
 fi
 
